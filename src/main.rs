@@ -1,8 +1,10 @@
 mod parsexec;
 use std::io::{self, Write};
 
+const PROMPT: &str = "> ";
+
 fn prompt() {
-    print!("> ");
+    print!("{}", PROMPT);
 }
 
 fn main() {
