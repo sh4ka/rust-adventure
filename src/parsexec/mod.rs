@@ -1,7 +1,11 @@
+use crate::location::{execute_go, execute_look};
+use crate::parsexec::Command::Look;
+use crate::player::Player;
+
 #[derive(Debug)]
 pub enum Command {
     Look,
-    Go,
+    Go(String),
     Take(String),
     Unknown,
     Quit,
@@ -14,7 +18,7 @@ pub fn parse_command(input: &str) -> Command {
     
     match words.next() {
         Some("mirar") => Command::Look,
-        Some("ir") => Command::Go,
+        Some("ir") => Command::Go(words.collect::<Vec<&str>>().join(" ")),
         Some("coger") => Command::Take(words.collect::<Vec<&str>>().join(" ")),
         Some("ayuda") => Command::Help,
         Some("salir") => Command::Quit,
@@ -22,14 +26,14 @@ pub fn parse_command(input: &str) -> Command {
     }
 }
 
-pub fn execute_command(command: Command) -> bool {
+pub fn execute_command(player: &mut Player, command: Command) -> bool {
     match command {
         Command::Look => {
-            println!("Miras a tu alrededor, pero está muy oscuro.");
+            execute_look(player);
             true
         }
-        Command::Go => {
-            println!("Está muy oscuro como para ir a ningún lugar.");
+        Command::Go(location) => {
+            execute_go(location, player);
             true
         }
         Command::Take(item) => {
@@ -43,7 +47,7 @@ pub fn execute_command(command: Command) -> bool {
         Command::Help => {
             println!("Comandos básicos disponibles:");
             println!("- mirar: sirve para explorar tu entorno.");
-            println!("- ir: sirve para moverse.");
+            println!("- ir: sirve para moverse. Ejemplo: Ir campo");
             println!("- coger: sirve para tratar de coger un objeto.");
             println!("- salir: abandona el juego.");
             println!("- ayuda: imprime este texto.");
