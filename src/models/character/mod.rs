@@ -1,5 +1,5 @@
 use std::fmt::{Display, Formatter};
-use crate::location::Location;
+use crate::models::location::Location;
 use crate::parsexec::Command;
 
 #[derive(Debug)]

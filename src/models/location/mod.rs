@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use crate::player::Player;
+use crate::Player;
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct Location {

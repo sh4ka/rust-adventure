@@ -1,11 +1,13 @@
-mod player;
+mod models {
+    pub mod player;
+    pub mod location;
+    pub mod character;
+}
 mod parsexec;
-mod location;
-mod character;
 
 use std::io::{self, Write};
-use crate::character::{parse_new_character, Character};
-use crate::player::Player;
+use models::character::{parse_new_character, Character};
+use models::player::Player;
 
 const PROMPT: &str = "> ";
 

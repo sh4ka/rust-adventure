@@ -1,5 +1,4 @@
-use crate::character::Character;
-use crate::location::{Location, LOCATIONS};
+use crate::Character;
 
 #[derive(Debug)]
 pub struct Player {

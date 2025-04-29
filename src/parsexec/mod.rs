@@ -1,6 +1,6 @@
-use crate::location::{execute_go, execute_look};
+use crate::models::location::{execute_go, execute_look};
 use crate::parsexec::Command::Look;
-use crate::player::Player;
+use crate::models::player::Player;
 
 #[derive(Debug)]
 pub enum Command {
