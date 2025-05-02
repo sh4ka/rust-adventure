@@ -9,15 +9,66 @@ pub struct GameObject {
 }
 
 #[derive(Debug, Clone)]
+pub struct RoomContent {
+    pub items: Vec<Item>,      // Items en la sala
+    pub npcs: Vec<String>,     // Tags de los NPCs en la sala
+    pub is_visited: bool,      // Si la sala ha sido visitada
+    pub is_locked: bool,       // Si la sala está bloqueada
+    pub required_key: Option<String>, // Tag del item necesario para desbloquear la sala
+}
+
+impl RoomContent {
+    pub fn new() -> Self {
+        Self {
+            items: Vec::new(),
+            npcs: Vec::new(),
+            is_visited: false,
+            is_locked: false,
+            required_key: None,
+        }
+    }
+
+    pub fn add_item(&mut self, item: Item) {
+        self.items.push(item);
+    }
+
+    pub fn remove_item(&mut self, item_tag: &str) {
+        self.items.retain(|item| item.base.tag != item_tag);
+    }
+
+    pub fn add_npc(&mut self, npc_tag: &str) {
+        self.npcs.push(npc_tag.to_string());
+    }
+
+    pub fn remove_npc(&mut self, npc_tag: &str) {
+        self.npcs.retain(|tag| tag != npc_tag);
+    }
+
+    pub fn mark_as_visited(&mut self) {
+        self.is_visited = true;
+    }
+
+    pub fn lock(&mut self, key_tag: Option<&str>) {
+        self.is_locked = true;
+        self.required_key = key_tag.map(|s| s.to_string());
+    }
+
+    pub fn unlock(&mut self) {
+        self.is_locked = false;
+        self.required_key = None;
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Location {
     pub base: GameObject,
     pub connections: Vec<String>, // Tags de los pasajes que conectan con esta ubicación
+    pub content: RoomContent,     // Contenido de la sala
 }
 
 #[derive(Debug, Clone)]
 pub struct Item {
     pub base: GameObject,
-    pub location: Option<String>, // Tag de la ubicación donde está el item
     pub is_dropped: bool,        // Si el item fue soltado por el jugador
 }
 
@@ -53,6 +104,7 @@ impl Location {
         Self {
             base: GameObject::new(tag, description, visible),
             connections: Vec::new(),
+            content: RoomContent::new(),
         }
     }
 
@@ -62,10 +114,9 @@ impl Location {
 }
 
 impl Item {
-    pub fn new(tag: &str, description: &str, location: Option<&str>, visible: bool) -> Self {
+    pub fn new(tag: &str, description: &str, visible: bool) -> Self {
         Self {
             base: GameObject::new(tag, description, visible),
-            location: location.map(|s| s.to_string()),
             is_dropped: false,
         }
     }
@@ -123,6 +174,12 @@ lazy_static! {
         let mut laboratorio = Location::new("laboratorio", "un laboratorio abandonado. Mesas de trabajo cubiertas de polvo y estantes con frascos de cristal se alinean en las paredes.", true);
         let mut biblioteca = Location::new("biblioteca", "una biblioteca oculta. Estanterías de madera antigua contienen tomos polvorientos y pergaminos enrollados.", true);
         let mut tesoro = Location::new("tesoro", "una sala de tesoros. Cofres antiguos y estatuas de valor decoran esta cámara.", true);
+
+        // Añadir contenido a las ubicaciones
+        cueva.content.add_item(Item::new("antorcha", "una antorcha", true));
+        campo.content.add_item(Item::new("cuerda", "una cuerda en buen estado", false));
+        campo.content.add_item(Item::new("moneda-plata-0", "una moneda de plata", false));
+        pueblo.content.add_npc("guardia");
 
         // Añadir conexiones
         pueblo.add_connection("campo");
@@ -185,10 +242,10 @@ lazy_static! {
         let mut m = HashMap::new();
         
         // Crear items
-        m.insert("venda".to_string(), Item::new("venda", "una venda limpia", Some("cueva"), false));
-        m.insert("cuerda".to_string(), Item::new("cuerda", "una cuerda en buen estado", Some("campo"), false));
-        m.insert("moneda-plata-0".to_string(), Item::new("moneda-plata-0", "una moneda de plata", Some("campo"), false));
-        m.insert("antorcha".to_string(), Item::new("antorcha", "una antorcha", Some("cueva"), true));
+        m.insert("venda".to_string(), Item::new("venda", "una venda limpia", false));
+        m.insert("cuerda".to_string(), Item::new("cuerda", "una cuerda en buen estado", false));
+        m.insert("moneda-plata-0".to_string(), Item::new("moneda-plata-0", "una moneda de plata", false));
+        m.insert("antorcha".to_string(), Item::new("antorcha", "una antorcha", true));
 
         m
     };
@@ -198,11 +255,10 @@ lazy_static! {
         
         // Crear NPCs
         let mut guardia = NPC::new("guardia", "una guardia de aspecto amable, armado con una lanza y armadura ligera de cuero", "pueblo", true);
-        guardia.add_dialogue("¡Bienvenido a Woodspring! ¿En qué puedo ayudarte?");
+        guardia.add_dialogue("Bienvenido a Woodspring. ¿En qué puedo ayudarte?");
         guardia.add_dialogue("Ten cuidado en el bosque, dicen que hay criaturas extrañas.");
-        
         m.insert("guardia".to_string(), guardia);
-
+        
         m
     };
 
@@ -240,7 +296,7 @@ pub fn find_passage(tag: &str) -> Option<&'static Passage> {
 // Función para obtener todos los items en una ubicación
 pub fn get_items_in_location(location_tag: &str) -> Vec<&'static Item> {
     ITEMS.values()
-        .filter(|item| item.location.as_ref().map_or(false, |loc| loc == location_tag))
+        .filter(|item| item.base.tag == location_tag)
         .collect()
 }
 
@@ -256,4 +312,8 @@ pub fn get_passages_from_location(location_tag: &str) -> Vec<&'static Passage> {
     PASSAGES.values()
         .filter(|passage| passage.from == location_tag)
         .collect()
+}
+
+pub fn find_item_in_location<'a>(location: &'a Location, item_tag: &str) -> Option<&'a Item> {
+    location.content.items.iter().find(|item| item.base.tag == item_tag)
 }
