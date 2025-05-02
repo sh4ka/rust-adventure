@@ -11,6 +11,7 @@ pub enum Command {
     Unknown,
     Quit,
     Help,
+    Inventory,
 }
 
 #[derive(Debug, Clone)]
@@ -90,11 +91,15 @@ pub fn execute_command<'a>(player: &mut Player<'a>, game_command: &GameCommand<'
         }
         Command::Take => {
             if let Some(target) = game_command.target {
-                println!("Intentando coger {}", target.description);
-                result = true;
+                result = player.execute_take(target);
             } else {
                 println!("¿Qué quieres coger? Escribe: Coger [objeto]");
             }
+            result
+        }
+        Command::Inventory => {
+            player.execute_inventory();
+            result = true;
             result
         }
         Command::Quit => {
@@ -122,6 +127,7 @@ lazy_static! {
         GameCommand::new(Command::Look, "Mirar", "Mirar a tu alrededor.", true),
         GameCommand::new(Command::Go, "Ir", "Ir a un lugar.", true),
         GameCommand::new(Command::Take, "Coger", "Intentas coger algo.", true),
+        GameCommand::new(Command::Inventory, "Inventario", "Muestra tu inventario.", true),
         GameCommand::new(Command::Help, "Ayuda", "Imprime este texto.", true),
         GameCommand::new(Command::Quit, "Salir", "Sale del juego.", true),
     ];

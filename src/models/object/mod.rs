@@ -12,7 +12,7 @@ pub struct Object<'a> {
     pub description: String,
     pub(crate) tag: String,
     location: Option<&'a Object<'a>>,  // Referencia a una Location en la que este object se encuentra
-    object_type: ObjectType,
+    pub object_type: ObjectType,
     visible: bool,
 }
 
@@ -57,11 +57,11 @@ pub fn find_objects_by_location(tag: &str) -> Vec<&'static Object<'static>> {
 
 lazy_static! {
     pub static ref LOCATIONS: Vec<Object<'static>> = vec![
-        Object::new("una pequeña cueva, fuera puedes ver campos de labranza.", "cueva", None, ObjectType::Location, true),
+        Object::new("una pequeña cueva, con suelo de tierra y paredes de piedra, fuera puedes ver campos de labranza.", "cueva", None, ObjectType::Location, true),
         Object::new("un campo abierto, recien labrado. En el horizonte puedes ver las humildes casas de Woodspring y cerca hay una pequeña cueva.", "campo", None, ObjectType::Location, true),
         Object::new("el pueblo de Woodspring, unas pocas casas de campesinos organizadas alrededor de una plaza. Puedes ver un pequeño comercio y una posada. Hay campos rodeando el pueblo.", "pueblo", None, ObjectType::Location, true),
-        Object::new("un bosque de robles a las afueras de Woodspring. Se extiende hasta el horizonte.", "bosque", None, ObjectType::Location, true),
-        Object::new("unas ruinas pertenecientes a un antiguo templo. La hiedra cubre gran parte de lo que antaño fueron grandes columnas de mármol.", "ruinas", None, ObjectType::Location, true),
+        Object::new("un bosque de robles a las afueras de Woodspring. Unas antiguas ruinas emergen de su umbral. Es de un tamaño magnífico y se extiende hasta el horizonte.", "bosque", None, ObjectType::Location, true),
+        Object::new("unas ruinas pertenecientes a un antiguo templo. La hiedra cubre gran parte de lo que antaño fueron majestuosas columnas de mármol.", "ruinas", None, ObjectType::Location, true),
     ];
     
     pub static ref OBJECTS: Vec<Object<'static>> = {
