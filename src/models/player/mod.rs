@@ -47,7 +47,7 @@ impl<'a> Player<'a> {
                 // Check if the object is an item
                 if object.object_type == ObjectType::Item {
                     self.inventory.push(object);
-                    println!("Has cogido {}.", object.description);
+                    println!("Has cogido {} y lo has añadido a tu inventario.", object.description);
                     return true;
                 } else {
                     println!("No puedes coger eso.");
