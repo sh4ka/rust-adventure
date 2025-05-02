@@ -116,18 +116,64 @@ lazy_static! {
         let mut ruinas = Location::new("ruinas", "unas ruinas pertenecientes a un antiguo templo. La hiedra cubre gran parte de lo que antaño fueron majestuosas columnas de mármol.", true);
         
         // Ubicaciones ocultas
-        let mut camara = Location::new("camara-secreta", "una cámara secreta con paredes de piedra pulida. En el centro hay un pedestal antiguo con símbolos grabados.", true);
+        let mut grieta = Location::new("grieta", "una grieta en el fondo de la cueva por la que se puede ver un corredor, es algo estrecha.", true);
+        let mut corredor = Location::new("corredor", "un corredor que termina en una puerta de piedra con símbolos grabados.", true);
+        let mut puerta = Location::new("puerta", "una pesada puerta de piedra con símbolos grabados.", true);
+        let mut camara = Location::new("camara", "una cámara secreta con paredes de piedra pulida. En el centro hay un pedestal antiguo con símbolos grabados.", true);
         let mut laboratorio = Location::new("laboratorio", "un laboratorio abandonado. Mesas de trabajo cubiertas de polvo y estantes con frascos de cristal se alinean en las paredes.", true);
         let mut biblioteca = Location::new("biblioteca", "una biblioteca oculta. Estanterías de madera antigua contienen tomos polvorientos y pergaminos enrollados.", true);
         let mut tesoro = Location::new("tesoro", "una sala de tesoros. Cofres antiguos y estatuas de valor decoran esta cámara.", true);
 
+        // Añadir conexiones
+        pueblo.add_connection("campo");
+
+        campo.add_connection("pueblo");
+        campo.add_connection("cueva");
+
+        cueva.add_connection("campo");
+        cueva.add_connection("grieta"); // oculta
+        cueva.add_connection("bosque");
+        
+        bosque.add_connection("cueva");
+        bosque.add_connection("ruinas");
+        
+        ruinas.add_connection("bosque");
+
+        // Localizaciones de la Cueva
+        // grieta
+        grieta.add_connection("cueva");
+        grieta.add_connection("corredor");
+        // corredor
+        corredor.add_connection("grieta");
+        corredor.add_connection("puerta");
+        // puerta
+        puerta.add_connection("corredor");
+        puerta.add_connection("camara");
+        // camara
+        camara.add_connection("puerta");
+        camara.add_connection("laboratorio");
+        // laboratorio
+        laboratorio.add_connection("camara");
+        laboratorio.add_connection("biblioteca");
+        // biblioteca
+        biblioteca.add_connection("laboratorio");
+        biblioteca.add_connection("tesoro");
+        // tesoro
+        tesoro.add_connection("biblioteca");
+
         // Añadir ubicaciones al mapa
+        // localizaciones principales
         m.insert("cueva".to_string(), cueva);
         m.insert("campo".to_string(), campo);
         m.insert("pueblo".to_string(), pueblo);
         m.insert("bosque".to_string(), bosque);
         m.insert("ruinas".to_string(), ruinas);
-        m.insert("camara-secreta".to_string(), camara);
+
+        // Localizaciones de la Cueva
+        m.insert("grieta".to_string(), grieta);
+        m.insert("corredor".to_string(), corredor);
+        m.insert("puerta".to_string(), puerta);
+        m.insert("camara".to_string(), camara);
         m.insert("laboratorio".to_string(), laboratorio);
         m.insert("biblioteca".to_string(), biblioteca);
         m.insert("tesoro".to_string(), tesoro);

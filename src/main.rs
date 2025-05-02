@@ -31,7 +31,7 @@ fn main() {
     }
     
     let mut player = Player::new(characters);
-    player.execute_go(Some("cueva".to_string()));
+    player.execute_go(Some("pueblo".to_string()));
     
     println!("\nEscribe 'ayuda' para ver los comandos disponibles.");
     

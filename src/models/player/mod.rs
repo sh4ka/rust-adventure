@@ -82,13 +82,72 @@ impl Player {
     }
 
     pub fn execute_go(&mut self, location_tag: Option<String>) {
-        if let Some(tag) = location_tag {
-            if find_location(&tag).is_some() {
-                self.set_current_location(Some(tag));
-                self.execute_look();
-            } else {
-                println!("No puedes ir allí.");
+        match location_tag {
+            Some(tag) => {
+                if let Some(current_location) = &self.current_location {
+                    if let Some(location) = find_location(current_location) {
+                        // Verificar si la ubicación destino está conectada
+                        if location.connections.contains(&tag) {
+                            if find_location(&tag).is_some() {
+                                self.set_current_location(Some(tag));
+                                self.execute_look();
+                            } else {
+                                println!("No puedes ir allí.");
+                                self.show_available_locations(location);
+                            }
+                        } else {
+                            println!("No hay un camino que lleve a ese lugar desde aquí.");
+                            self.show_available_locations(location);
+                        }
+                    }
+                } else {
+                    // Si no hay ubicación actual, permitir el movimiento inicial
+                    if find_location(&tag).is_some() {
+                        self.set_current_location(Some(tag));
+                        self.execute_look();
+                    } else {
+                        println!("No puedes ir allí.");
+                        println!("\nPuedes ir a cualquiera de estas ubicaciones:");
+                        for (tag, location) in crate::models::object::LOCATIONS.iter() {
+                            if location.base.visible {
+                                println!("- {} ({})", location.base.description, tag);
+                            }
+                        }
+                    }
+                }
             }
+            None => {
+                if let Some(current_location) = &self.current_location {
+                    if let Some(location) = find_location(current_location) {
+                        println!("¿Ir a dónde?");
+                        self.show_available_locations(location);
+                    }
+                } else {
+                    println!("¿Ir a dónde?");
+                    println!("\nPuedes ir a cualquiera de estas ubicaciones:");
+                    for (tag, location) in crate::models::object::LOCATIONS.iter() {
+                        if location.base.visible {
+                            println!("- {} ({})", location.base.description, tag);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn show_available_locations(&self, location: &Location) {
+        println!("\nPuedes ir a:");
+        let mut has_connections = false;
+        for connection in &location.connections {
+            if let Some(connected_location) = find_location(connection) {
+                if connected_location.base.visible {
+                    println!("- {} ({})", connected_location.base.description, connection);
+                    has_connections = true;
+                }
+            }
+        }
+        if !has_connections {
+            println!("No hay salidas disponibles desde aquí.");
         }
     }
 

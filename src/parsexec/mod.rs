@@ -79,15 +79,7 @@ pub fn execute_command(command: GameCommand, player: &mut Player) {
             player.execute_look();
         },
         Command::Go => {
-            if let Some(target) = command.target {
-                if let Some(location) = find_location(&target) {
-                    player.execute_go(Some(target));
-                } else {
-                    println!("No puedes ir allí.");
-                }
-            } else {
-                println!("¿Ir a dónde?");
-            }
+            player.execute_go(command.target);
         },
         Command::Take => {
             if let Some(target) = command.target {
