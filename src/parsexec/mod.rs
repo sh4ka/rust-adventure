@@ -73,60 +73,57 @@ pub fn parse_command(input: &str) -> GameCommand {
     }
 }
 
-pub fn execute_command(command: GameCommand, player: &mut Player) {
+pub fn execute_command(command: GameCommand, player: &mut Player) -> String {
     match command.command {
-        Command::Look => {
-            player.execute_look();
-        },
-        Command::Go => {
-            player.execute_go(command.target);
-        },
+        Command::Look => player.execute_look(),
+        Command::Go => player.execute_go(command.target.as_deref()),
         Command::Take => {
             if let Some(target) = command.target {
-                if let Some(item) = find_item(&target) {
-                    player.execute_take(&item.base.tag);
+                if player.execute_take(&target) {
+                    "".to_string()
                 } else {
-                    println!("No hay ningún objeto con ese nombre aquí.");
+                    "No puedes coger eso.".to_string()
                 }
             } else {
-                println!("¿Coger qué?");
+                "¿Qué quieres coger?".to_string()
             }
         },
         Command::Drop => {
             if let Some(target) = command.target {
-                if let Some(item) = find_item(&target) {
-                    player.execute_drop(&item.base.tag);
+                if player.execute_drop(&target) {
+                    "".to_string()
                 } else {
-                    println!("No tienes ese objeto en tu inventario.");
+                    "No puedes soltar eso.".to_string()
                 }
             } else {
-                println!("¿Soltar qué?");
+                "¿Qué quieres soltar?".to_string()
             }
         },
         Command::Inventory => {
             player.execute_inventory();
+            "".to_string()
         },
         Command::Search => {
-            player.execute_search();
+            if player.execute_search() {
+                "".to_string()
+            } else {
+                "No encuentras nada.".to_string()
+            }
         },
         Command::Help => {
-            println!("Comandos disponibles:");
-            println!("  mirar - Observar la ubicación actual");
-            println!("  ir <lugar> - Ir a otro lugar");
-            println!("  coger <objeto> - Coger un objeto");
-            println!("  soltar <objeto> - Soltar un objeto");
-            println!("  inventario - Ver tu inventario");
-            println!("  buscar - Buscar objetos ocultos");
-            println!("  ayuda - Mostrar esta ayuda");
-            println!("  salir - Salir del juego");
+            let mut help = String::from("Comandos disponibles:\n");
+            help.push_str("  mirar - Observar la ubicación actual\n");
+            help.push_str("  ir <lugar> - Ir a otro lugar\n");
+            help.push_str("  coger <objeto> - Coger un objeto\n");
+            help.push_str("  soltar <objeto> - Soltar un objeto\n");
+            help.push_str("  inventario - Ver tu inventario\n");
+            help.push_str("  buscar - Buscar objetos ocultos\n");
+            help.push_str("  ayuda - Mostrar esta ayuda\n");
+            help.push_str("  salir - Salir del juego");
+            help
         },
-        Command::Exit => {
-            println!("¡Hasta luego!");
-            std::process::exit(0);
-        },
-        Command::Unknown => {
-            println!("No entiendo ese comando. Escribe 'ayuda' para ver la lista de comandos disponibles.");
-        },
+        Command::Exit => "¡Hasta luego!".to_string(),
+        Command::Unknown => "No entiendo ese comando.".to_string(),
     }
 }
 

@@ -1,7 +1,8 @@
 use crate::Character;
-use crate::models::object::{Location, Item, NPC, Passage, find_location, find_npc, find_item_in_location};
+use crate::models::object::{Location, Item, NPC, Passage, find_location, find_npc, find_item_in_location, find_passage, PASSAGES};
 use std::collections::{HashMap, HashSet};
 use rand::Rng;
+use std::io::{self, Write};
 
 #[derive(Debug)]
 pub struct Player {
@@ -36,132 +37,120 @@ impl Player {
         self.current_location = location_tag;
     }
 
-    pub fn execute_look(&self) {
-        if let Some(location_tag) = &self.current_location {
-            if let Some(location) = find_location(location_tag) {
-                println!("Estas en {}", location.base.description);
+    pub fn execute_look(&self) -> String {
+        if let Some(location) = &self.current_location {
+            if let Some(loc) = find_location(location) {
+                let mut response = format!("Estás en {}\n", loc.base.description);
                 
-                // Obtener items en la ubicación
-                let visible_items: Vec<_> = location.content.items.iter()
-                    .filter(|item| {
-                        // El item está en la ubicación actual si:
-                        // 1. No ha sido soltado en otro lugar
-                        // 2. Ha sido soltado en la ubicación actual
-                        (!self.dropped_items.contains_key(&item.base.tag) ||
-                            self.dropped_items.get(&item.base.tag).map_or(false, |loc| loc == location_tag)) &&
-                        !self.inventory.iter().any(|inv_item| inv_item.base.tag == item.base.tag) &&
-                        (item.base.visible || self.discovered_items.contains(&item.base.tag))
-                    })
+                // Mostrar descripción larga
+                response.push_str(&format!("\n{}\n", loc.base.long_description));
+                
+                // Contar items y npcs visibles
+                let visible_items: Vec<_> = loc.content.items.iter()
+                    .filter(|item| item.base.visible)
+                    .collect();
+                
+                let visible_npcs: Vec<_> = loc.content.npcs.iter()
+                    .filter_map(|npc_tag| find_npc(npc_tag))
+                    .filter(|npc| npc.base.visible)
                     .collect();
 
-                // Obtener NPCs en la ubicación
-                let visible_npcs: Vec<_> = location.content.npcs.iter()
-                    .filter(|npc_tag| {
-                        if let Some(npc) = find_npc(npc_tag) {
-                            npc.base.visible
-                        } else {
-                            false
-                        }
-                    })
-                    .collect();
-
-                // Mostrar items y NPCs
+                // Mostrar items y npc en la ubicación solo si hay visibles
                 if !visible_items.is_empty() || !visible_npcs.is_empty() {
-                    println!("Puedes ver:");
-                    
-                    // Mostrar items
-                    for (i, item) in visible_items.iter().enumerate() {
-                        if i == visible_items.len() - 1 && visible_npcs.is_empty() {
-                            println!("- {}.", item.base.description);
-                        } else {
-                            println!("- {},", item.base.description);
-                        }
+                    response.push_str("\nHay:\n");
+                    for item in visible_items {
+                        response.push_str(&format!("- {}\n", item.base.description));
                     }
-
-                    // Mostrar NPCs
-                    for (i, npc_tag) in visible_npcs.iter().enumerate() {
-                        if let Some(npc) = find_npc(npc_tag) {
-                            if i == visible_npcs.len() - 1 {
-                                println!("- {}.", npc.base.description);
-                            } else {
-                                println!("- {},", npc.base.description);
-                            }
-                        }
+                    for npc in visible_npcs {
+                        response.push_str(&format!("- {}\n", npc.base.description));
                     }
                 }
+                
+                return response;
             }
         }
+        "No estás en ninguna ubicación.".to_string()
     }
 
-    pub fn execute_go(&mut self, location_tag: Option<String>) {
+    pub fn execute_go(&mut self, location_tag: Option<&str>) -> String {
         match location_tag {
             Some(tag) => {
-                if let Some(current_location) = &self.current_location {
+                if let Some(current_location) = self.current_location.as_ref() {
                     if let Some(location) = find_location(current_location) {
                         // Verificar si la ubicación destino está conectada
-                        if location.connections.contains(&tag) {
-                            if let Some(destination) = find_location(&tag) {
-                                if destination.content.is_locked {
-                                    if let Some(key_tag) = &destination.content.required_key {
-                                        if self.has_item(key_tag) {
-                                            self.set_current_location(Some(tag));
-                                            self.execute_look();
-                                        } else {
-                                            println!("La entrada está bloqueada. Necesitas una llave para entrar.");
+                        if location.connections.contains(&tag.to_string()) {
+                            if let Some(destination) = find_location(tag) {
+                                // Verificar si hay un pasaje que conecte las ubicaciones
+                                if let Some(passage) = PASSAGES.values().find(|p| 
+                                    (p.from == *current_location && p.to == tag) ||
+                                    (p.from == tag && p.to == *current_location)
+                                ) {
+                                    // Verificar si el pasaje requiere una llave
+                                    if passage.requires_key {
+                                        if let Some(key_tag) = &passage.key_tag {
+                                            if !self.has_item(key_tag) {
+                                                return format!("Necesitas una llave para pasar por {}.", passage.base.description);
+                                            }
                                         }
-                                    } else {
-                                        println!("La entrada está bloqueada.");
                                     }
+
+                                    // Verificar si el pasaje tiene un acertijo
+                                    if passage.has_riddle {
+                                        if let (Some(riddle), Some(answer)) = (&passage.riddle, &passage.riddle_answer) {
+                                            println!("\n{}", riddle);
+                                            println!("Escribe tu respuesta (o 'cancelar' para volver):");
+                                            
+                                            let mut input = String::new();
+                                            if let Ok(_) = std::io::stdin().read_line(&mut input) {
+                                                let input = input.trim().to_lowercase();
+                                                if input == "cancelar" {
+                                                    return "Has decidido no intentar resolver el acertijo.".to_string();
+                                                }
+                                                if input != answer.to_lowercase() {
+                                                    return "Respuesta incorrecta. La puerta permanece cerrada.".to_string();
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Si llegamos aquí, el jugador puede pasar
+                                    self.set_current_location(Some(tag.to_string()));
+                                    return self.execute_look();
                                 } else {
-                                    self.set_current_location(Some(tag));
-                                    self.execute_look();
+                                    // Si no hay pasaje, permitir el movimiento directo
+                                    self.set_current_location(Some(tag.to_string()));
+                                    return self.execute_look();
                                 }
                             } else {
-                                println!("No puedes ir allí.");
-                                self.show_available_locations(location);
+                                return format!("No existe la ubicación '{}'.", tag);
                             }
                         } else {
-                            println!("No hay un camino que lleve a ese lugar desde aquí.");
-                            self.show_available_locations(location);
-                        }
-                    }
-                } else {
-                    // Si no hay ubicación actual, permitir el movimiento inicial
-                    if let Some(destination) = find_location(&tag) {
-                        if destination.content.is_locked {
-                            println!("La entrada está bloqueada.");
-                        } else {
-                            self.set_current_location(Some(tag));
-                            self.execute_look();
+                            return self.show_default_locations();
                         }
                     } else {
-                        println!("No puedes ir allí.");
-                        println!("\nPuedes ir a cualquiera de estas ubicaciones:");
-                        for (tag, location) in crate::models::object::LOCATIONS.iter() {
-                            if location.base.visible {
-                                println!("- {} ({})", location.base.description, tag);
-                            }
-                        }
+                        return format!("No existe la ubicación actual '{}'.", current_location);
+                    }
+                } else {
+                    // Si no hay ubicación actual, permitir moverse a cualquier ubicación válida
+                    if find_location(tag).is_some() {
+                        self.set_current_location(Some(tag.to_string()));
+                        return self.execute_look();
+                    } else {
+                        return format!("No existe la ubicación '{}'.", tag);
                     }
                 }
             }
             None => {
-                if let Some(current_location) = &self.current_location {
-                    if let Some(location) = find_location(current_location) {
-                        println!("¿Ir a dónde?");
-                        self.show_available_locations(location);
-                    }
-                } else {
-                    println!("¿Ir a dónde?");
-                    println!("\nPuedes ir a cualquiera de estas ubicaciones:");
-                    for (tag, location) in crate::models::object::LOCATIONS.iter() {
-                        if location.base.visible {
-                            println!("- {} ({})", location.base.description, tag);
-                        }
-                    }
-                }
+                return self.show_default_locations();
             }
         }
+    }
+
+    fn show_default_locations(&self) -> String {
+        let mut response = String::new();
+        response.push_str("\nPuedes ir a:\n");
+        response.push_str(&self.show_available_locations());
+        response
     }
 
     pub fn execute_take(&mut self, item_tag: &str) -> bool {
@@ -293,19 +282,24 @@ impl Player {
         false
     }
 
-    fn show_available_locations(&self, location: &Location) {
-        println!("\nPuedes ir a:");
+    fn show_available_locations(&self) -> String {
+        let mut response = String::new();
         let mut has_connections = false;
-        for connection in &location.connections {
-            if let Some(connected_location) = find_location(connection) {
-                if connected_location.base.visible {
-                    println!("- {} ({})", connected_location.base.description, connection);
-                    has_connections = true;
+        if let Some(current_location) = &self.current_location {
+            if let Some(location) = find_location(&current_location) {
+                for connection in &location.connections {
+                    if let Some(connected_location) = find_location(connection) {
+                        if connected_location.base.visible {
+                            response.push_str(&format!("- {} ({})\n", connected_location.base.description, connection));
+                            has_connections = true;
+                        }
+                    }
                 }
             }
         }
         if !has_connections {
-            println!("No hay salidas disponibles desde aquí.");
+            response.push_str("No hay salidas disponibles desde aquí.");
         }
+        response
     }
 }

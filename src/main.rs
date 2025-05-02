@@ -12,37 +12,50 @@ use crate::parsexec::{parse_command, execute_command};
 
 fn main() {
     println!("Bienvenido a Aventura en Woodspring");
-    println!("Crea tu grupo de aventureros (4 personajes):");
-    
+    println!("-----------------------------------\n");
+
+    println!("Crea tu grupo de aventureros:");
     let mut characters = Vec::new();
     for i in 1..=4 {
-        println!("\nPersonaje {}", i);
-        println!("Elige una clase:");
+        println!("\nAventurero {}:", i);
         println!("1. Guerrero");
-        
+        println!("2. Mago");
+        println!("3. Ladrón");
+        println!("4. Clérigo");
+        print!("Elige una clase (1-4): ");
+        std::io::stdout().flush().unwrap();
+
         let mut input = String::new();
-        io::stdin().read_line(&mut input).expect("Error al leer la entrada");
-        
-        let character = match input.trim() {
-            "1" => Character::new(Class::Fighter),
-            _ => Character::new(Class::Fighter)
-        };
-        characters.push(character);
+        std::io::stdin().read_line(&mut input).unwrap();
+        let _class = input.trim();
+
+        // Por ahora, todos son guerreros
+        characters.push(Character::new(Class::Fighter));
     }
-    
+
     let mut player = Player::new(characters);
-    player.execute_go(Some("pueblo".to_string()));
-    
-    println!("\nEscribe 'ayuda' para ver los comandos disponibles.");
-    
+    println!("{}", player.execute_go(Some("pueblo")));
+
     loop {
-        print!("\n> ");
-        io::stdout().flush().unwrap();
-        
+        print!("> ");
+        std::io::stdout().flush().unwrap();
+
         let mut input = String::new();
-        io::stdin().read_line(&mut input).expect("Error al leer la entrada");
-        
+        std::io::stdin().read_line(&mut input).unwrap();
+        let input = input.trim().to_lowercase();
+
+        if input.is_empty() {
+            continue;
+        }
+
         let command = parse_command(&input);
-        execute_command(command, &mut player);
+        let response = execute_command(command, &mut player);
+        if !response.is_empty() {
+            println!("{}", response);
+        }
+
+        if input == "salir" {
+            break;
+        }
     }
 }
