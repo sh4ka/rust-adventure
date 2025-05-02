@@ -8,7 +8,7 @@ mod parsexec;
 use std::io::{self, Write};
 use models::character::{parse_new_character, Character};
 use models::player::Player;
-use crate::models::object::{find_object_by_tag, OBJECTS};
+use crate::models::object::{find_object_by_tag};
 
 const PROMPT: &str = "> ";
 
@@ -66,7 +66,7 @@ fn main() {
     let initial_location = find_object_by_tag("pueblo");
     player.execute_go(initial_location);
     
-    let mut turn = 0;
+    let mut _turn = 0;
     
     loop {
         let input = capture_input();
@@ -76,7 +76,7 @@ fn main() {
             if !parsexec::execute_command(&mut player, &game_command.unwrap()) {
                 continue;
             }
-            turn += 1; // command executed ok
+            _turn += 1; // command executed ok
         }                
     }
 }
