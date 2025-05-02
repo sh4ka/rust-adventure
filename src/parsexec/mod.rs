@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use crate::models::object::{find_object_by_tag, Object, ObjectType, LOCATIONS, OBJECTS};
+use crate::models::object::{find_location, find_item, find_npc, find_passage};
 use crate::models::player::Player;
 
 #[derive(Debug, Clone)]
@@ -8,191 +8,145 @@ pub enum Command {
     Go,
     Take,
     Drop,
-    Unknown,
-    Quit,
-    Help,
     Inventory,
     Search,
+    Help,
+    Exit,
+    Unknown,
 }
 
 #[derive(Debug, Clone)]
-pub struct GameCommand<'a> {
-    command: Command,
-    pub name: String,    
-    pub description: String,
-    pub available: bool,
-    pub target: Option<&'a Object<'a>>
+pub struct GameCommand {
+    pub command: Command,
+    pub target: Option<String>,  // Tag del objetivo (item, ubicación, etc.)
 }
 
-impl<'a> GameCommand<'a> {
-    pub fn new(command: Command, name: &str, description: &str, available: bool) -> Self {
-        GameCommand { 
+impl GameCommand {
+    pub fn new(command: Command) -> Self {
+        Self {
             command,
-            name: name.to_string(),
-            description: description.to_string(),
-            available,
-            target: None
+            target: None,
         }
     }
 
-    pub fn with_target(mut self, target: &'a Object<'a>) -> Self {
+    pub fn with_target(mut self, target: String) -> Self {
         self.target = Some(target);
         self
     }
 }
 
-pub fn parse_command(input: &str) -> Option<GameCommand<'static>> {
-    let input = input.trim().to_lowercase();
-    let parts = input.split_whitespace().into_iter().collect::<Vec<&str>>();
-    let command_name = parts[0];
-
-    let mut game_command = match command_name {
-        "mirar" => Some(GameCommand::new(Command::Look, "Mirar", "Mirar a tu alrededor.", true)),
-        "ir" => Some(GameCommand::new(Command::Go, "Ir", "Ir a un lugar.", true)),
-        "coger" => Some(GameCommand::new(Command::Take, "Coger", "Coger un objeto.", true)),
-        "soltar" => Some(GameCommand::new(Command::Drop, "Soltar", "Soltar un objeto de tu inventario.", true)),
-        "inventario" => Some(GameCommand::new(Command::Inventory, "Inventario", "Muestra tu inventario.", true)),
-        "buscar" => Some(GameCommand::new(Command::Search, "Buscar", "Buscar en la sala actual.", true)),
-        "ayuda" => Some(GameCommand::new(Command::Help, "Ayuda", "Imprime este texto.", true)),
-        "salir" => Some(GameCommand::new(Command::Quit, "Salir", "Sale del juego.", true)),
-        _ => None,
-    }?;
+pub fn parse_command(input: &str) -> GameCommand {
+    let words: Vec<&str> = input.split_whitespace().collect();
     
-    // If there are additional words after the command, try to find a matching object
-    if parts.len() > 1 {
-        let target_name = parts[1..].join(" ");
-        if let Some(target) = find_object_by_tag(&target_name) {
-            game_command.target = Some(target);
-        }
+    if words.is_empty() {
+        return GameCommand::new(Command::Unknown);
     }
 
-    Some(game_command)
-}
-
-pub fn find_command_by_name<'a>(name: String) -> Option<GameCommand<'a>> {
-    for command in COMMANDS.iter() {
-        if command.name.to_lowercase() == name.to_lowercase() {
-            return Some(command.clone());
-        }
+    match words[0].to_lowercase().as_str() {
+        "mirar" => GameCommand::new(Command::Look),
+        "ir" => {
+            if words.len() > 1 {
+                GameCommand::new(Command::Go).with_target(words[1].to_string())
+            } else {
+                GameCommand::new(Command::Go)
+            }
+        },
+        "coger" => {
+            if words.len() > 1 {
+                GameCommand::new(Command::Take).with_target(words[1].to_string())
+            } else {
+                GameCommand::new(Command::Take)
+            }
+        },
+        "soltar" => {
+            if words.len() > 1 {
+                GameCommand::new(Command::Drop).with_target(words[1].to_string())
+            } else {
+                GameCommand::new(Command::Drop)
+            }
+        },
+        "inventario" => GameCommand::new(Command::Inventory),
+        "buscar" => GameCommand::new(Command::Search),
+        "ayuda" => GameCommand::new(Command::Help),
+        "salir" => GameCommand::new(Command::Exit),
+        _ => GameCommand::new(Command::Unknown),
     }
-    None
 }
 
-pub fn execute_command<'a>(player: &mut Player<'a>, game_command: &GameCommand<'a>) -> bool {
-    let mut result = false;
-    let command = &game_command.command;
-    match command {
+pub fn execute_command(command: GameCommand, player: &mut Player) {
+    match command.command {
         Command::Look => {
-            if let Some(target) = game_command.target {
-                println!("Mirando {}", target.description);
-            } else {
-                player.execute_look();
-            }
-            result = true;
-            result
-        }
+            player.execute_look();
+        },
         Command::Go => {
-            if let Some(target) = game_command.target {
-                player.execute_go(Some(target));
-                result = true;
-            } else {
-                println!("No se donde quieres ir. Escribe: Ir [lugar], por ejemplo 'Ir pueblo'");                
-            }
-            result
-        }
-        Command::Take => {
-            if let Some(target) = game_command.target {
-                result = player.execute_take(target);
-            } else {
-                // Si no se especifica un objeto, mostrar la lista de objetos disponibles
-                if let Some(location) = player.current_location {
-                    let objects_in_location = {
-                        let tag: &str = &location.tag;
-                        if let Some(location) = LOCATIONS.iter().find(|&loc| loc.tag == tag) {
-                            OBJECTS.iter()
-                                .filter(|&obj| {
-                                    (obj.get_location().map_or(false, |loc| loc.tag == location.tag) && 
-                                        !player.dropped_objects.contains_key(&obj.tag)) ||
-                                    player.dropped_objects.get(&obj.tag).map_or(false, |&loc| loc.tag == location.tag)
-                                })
-                                .filter(|&obj| 
-                                    (obj.visible || player.discovered_objects.contains(&obj.tag)) &&
-                                    obj.object_type == ObjectType::Item)
-                                .collect::<Vec<_>>()
-                        } else {
-                            Vec::new()
-                        }
-                    };
-
-                    if !objects_in_location.is_empty() {
-                        println!("¿Qué quieres coger?");
-                        println!("Puedes coger:");
-                        for obj in objects_in_location {
-                            println!("- {} [{}]", obj.description, obj.tag);
-                        }
-                    } else {
-                        println!("No hay nada que puedas coger aquí.");
-                    }
-                }
-                result = true;
-            }
-            result
-        }
-        Command::Drop => {
-            if let Some(target) = game_command.target {
-                result = player.execute_drop(target);
-            } else {
-                if !player.inventory.is_empty() {
-                    println!("¿Qué quieres soltar?");
-                    println!("Tienes en tu inventario:");
-                    for obj in &player.inventory {
-                        println!("- {} [{}]", obj.description, obj.tag);
-                    }
+            if let Some(target) = command.target {
+                if let Some(location) = find_location(&target) {
+                    player.execute_go(Some(target));
                 } else {
-                    println!("No tienes nada que soltar.");
+                    println!("No puedes ir allí.");
                 }
-                result = true;
+            } else {
+                println!("¿Ir a dónde?");
             }
-            result
-        }
+        },
+        Command::Take => {
+            if let Some(target) = command.target {
+                if let Some(item) = find_item(&target) {
+                    player.execute_take(&item.base.tag);
+                } else {
+                    println!("No hay ningún objeto con ese nombre aquí.");
+                }
+            } else {
+                println!("¿Coger qué?");
+            }
+        },
+        Command::Drop => {
+            if let Some(target) = command.target {
+                if let Some(item) = find_item(&target) {
+                    player.execute_drop(&item.base.tag);
+                } else {
+                    println!("No tienes ese objeto en tu inventario.");
+                }
+            } else {
+                println!("¿Soltar qué?");
+            }
+        },
         Command::Inventory => {
             player.execute_inventory();
-            result = true;
-            result
-        }
+        },
         Command::Search => {
-            result = player.execute_search();
-            result
-        }
-        Command::Quit => {
+            player.execute_search();
+        },
+        Command::Help => {
+            println!("Comandos disponibles:");
+            println!("  mirar - Observar la ubicación actual");
+            println!("  ir <lugar> - Ir a otro lugar");
+            println!("  coger <objeto> - Coger un objeto");
+            println!("  soltar <objeto> - Soltar un objeto");
+            println!("  inventario - Ver tu inventario");
+            println!("  buscar - Buscar objetos ocultos");
+            println!("  ayuda - Mostrar esta ayuda");
+            println!("  salir - Salir del juego");
+        },
+        Command::Exit => {
             println!("¡Hasta luego!");
             std::process::exit(0);
-        }
-        Command::Help => {
-            println!("Comandos básicos disponibles:");
-            for command in COMMANDS.iter() {
-                println!("- {}: {}", command.name, command.description);
-            }
-            result = true;
-            result
-        }
+        },
         Command::Unknown => {
-            println!("No entiendo ese comando.");
-            result = true;
-            result
-        }
+            println!("No entiendo ese comando. Escribe 'ayuda' para ver la lista de comandos disponibles.");
+        },
     }
 }
 
 lazy_static! {
-    pub static ref COMMANDS: Vec<GameCommand<'static>> = vec![
-        GameCommand::new(Command::Look, "Mirar", "Mirar a tu alrededor.", true),
-        GameCommand::new(Command::Go, "Ir", "Ir a un lugar.", true),
-        GameCommand::new(Command::Take, "Coger", "Coger un objeto.", true),
-        GameCommand::new(Command::Drop, "Soltar", "Soltar un objeto de tu inventario.", true),
-        GameCommand::new(Command::Inventory, "Inventario", "Muestra tu inventario.", true),
-        GameCommand::new(Command::Search, "Buscar", "Buscar en la sala actual.", true),
-        GameCommand::new(Command::Help, "Ayuda", "Imprime este texto.", true),
-        GameCommand::new(Command::Quit, "Salir", "Sale del juego.", true),
+    pub static ref COMMANDS: Vec<GameCommand> = vec![
+        GameCommand::new(Command::Look),
+        GameCommand::new(Command::Go),
+        GameCommand::new(Command::Take),
+        GameCommand::new(Command::Drop),
+        GameCommand::new(Command::Inventory),
+        GameCommand::new(Command::Search),
+        GameCommand::new(Command::Help),
+        GameCommand::new(Command::Exit),
     ];
 }

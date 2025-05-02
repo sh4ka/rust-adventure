@@ -1,112 +1,127 @@
 use crate::Character;
-use crate::models::object::{Object, ObjectType, LOCATIONS, OBJECTS};
+use crate::models::object::{Location, Item, NPC, Passage, find_location, find_item, get_items_in_location, get_npcs_in_location, get_passages_from_location};
 use std::collections::{HashMap, HashSet};
 use rand::Rng;
 
 #[derive(Debug)]
-pub struct Player<'a> {
+pub struct Player {
     characters: Vec<Character>,
-    pub current_location: Option<&'a Object<'a>>,
-    pub inventory: Vec<&'a Object<'a>>,
+    pub current_location: Option<String>,  // Tag de la ubicación actual
+    pub inventory: Vec<String>,           // Tags de los items en el inventario
     pub search_attempts: HashMap<String, u32>,  // Sala -> número de intentos
-    pub discovered_objects: HashSet<String>,    // Tags de objetos descubiertos
-    pub dropped_objects: HashMap<String, &'a Object<'a>>, // tag -> ubicación donde se soltó
+    pub discovered_items: HashSet<String>,    // Tags de items descubiertos
+    pub dropped_items: HashMap<String, String>, // tag -> ubicación donde se soltó
 }
 
-impl<'a> Player<'a> {
+impl Player {
     pub fn new(characters: Vec<Character>) -> Self {
         Self { 
             characters, 
             current_location: None,
             inventory: Vec::new(),
             search_attempts: HashMap::new(),
-            discovered_objects: HashSet::new(),
-            dropped_objects: HashMap::new(),
+            discovered_items: HashSet::new(),
+            dropped_items: HashMap::new(),
         }
     }
 
-    fn set_current_location(&mut self, location: Option<&'a Object<'a>>) {
-        self.current_location = location;
+    fn set_current_location(&mut self, location_tag: Option<String>) {
+        self.current_location = location_tag;
     }
 
     pub fn execute_look(&self) {
-        println!("Estas en {}", self.current_location.unwrap().description);
-        let objects_in_location = {
-            let tag: &str = &self.current_location.unwrap().tag;
-            if let Some(location) = LOCATIONS.iter().find(|&loc| loc.tag == tag) {
-                OBJECTS.iter()
-                    .filter(|&obj| {
-                        ((obj.get_location().map_or(false, |loc| loc.tag == location.tag) && 
-                            !self.dropped_objects.contains_key(&obj.tag)) ||
-                        self.dropped_objects.get(&obj.tag).map_or(false, |&loc| loc.tag == location.tag)) &&
-                        !self.inventory.iter().any(|inv_obj| inv_obj.tag == obj.tag)
+        if let Some(location_tag) = &self.current_location {
+            if let Some(location) = find_location(location_tag) {
+                println!("Estas en {}", location.base.description);
+                
+                // Obtener items en la ubicación
+                let items = get_items_in_location(location_tag);
+                let visible_items: Vec<_> = items.iter()
+                    .filter(|item| {
+                        // El item está en la ubicación actual si:
+                        // 1. Está en su ubicación original y no ha sido soltado en otro lugar
+                        // 2. Ha sido soltado en la ubicación actual
+                        ((item.location.as_ref().map_or(false, |loc| loc == location_tag) && 
+                            !self.dropped_items.contains_key(&item.base.tag)) ||
+                        self.dropped_items.get(&item.base.tag).map_or(false, |loc| loc == location_tag)) &&
+                        !self.inventory.contains(&item.base.tag)
                     })
-                    .filter(|&obj| obj.visible || self.discovered_objects.contains(&obj.tag))
-                    .collect::<Vec<_>>()
+                    .filter(|item| item.base.visible || self.discovered_items.contains(&item.base.tag))
+                    .collect();
+
+                // Obtener NPCs en la ubicación
+                let npcs = get_npcs_in_location(location_tag);
+                let visible_npcs: Vec<_> = npcs.iter()
+                    .filter(|npc| npc.base.visible)
+                    .collect();
+
+                // Mostrar items y NPCs
+                if !visible_items.is_empty() || !visible_npcs.is_empty() {
+                    println!("Puedes ver:");
+                    
+                    // Mostrar items
+                    for (i, item) in visible_items.iter().enumerate() {
+                        if i == visible_items.len() - 1 && visible_npcs.is_empty() {
+                            println!("- {}.", item.base.description);
+                        } else {
+                            println!("- {},", item.base.description);
+                        }
+                    }
+
+                    // Mostrar NPCs
+                    for (i, npc) in visible_npcs.iter().enumerate() {
+                        if i == visible_npcs.len() - 1 {
+                            println!("- {}.", npc.base.description);
+                        } else {
+                            println!("- {},", npc.base.description);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn execute_go(&mut self, location_tag: Option<String>) {
+        if let Some(tag) = location_tag {
+            if find_location(&tag).is_some() {
+                self.set_current_location(Some(tag));
+                self.execute_look();
             } else {
-                Vec::new()
-            }
-        };
-        if objects_in_location.len() > 0 {
-            println!("Puedes ver:");
-            for (i, object) in objects_in_location.iter().enumerate() {
-                if i == objects_in_location.len() - 1 {
-                    println!("- {}.", object.description);
-                } else {
-                    println!("- {},", object.description);
-                }
+                println!("No puedes ir allí.");
             }
         }
     }
 
-    pub fn execute_go(&mut self, location: Option<&'a Object<'a>>) {
-        if location.is_some() {
-            self.set_current_location(Option::from(location));
-            self.execute_look();
-        }
-    }
+    pub fn execute_take(&mut self, item_tag: &str) -> bool {
+        if let Some(location_tag) = &self.current_location {
+            // Obtener items en la ubicación actual
+            let items = get_items_in_location(location_tag);
+            let available_items: Vec<_> = items.iter()
+                .filter(|item| {
+                    ((item.location.as_ref().map_or(false, |loc| loc == location_tag) && 
+                        !self.dropped_items.contains_key(&item.base.tag)) ||
+                    self.dropped_items.get(&item.base.tag).map_or(false, |loc| loc == location_tag)) &&
+                    !self.inventory.contains(&item.base.tag)
+                })
+                .filter(|item| 
+                    (item.base.visible || self.discovered_items.contains(&item.base.tag)))
+                .collect();
 
-    pub fn execute_take(&mut self, object: &'a Object<'a>) -> bool {
-        // Check if the object is in the current location
-        if let Some(location) = self.current_location {
-            let objects_in_location = {
-                let tag: &str = &location.tag;
-                if let Some(location) = LOCATIONS.iter().find(|&loc| loc.tag == tag) {
-                    OBJECTS.iter()
-                        .filter(|&obj| {
-                            ((obj.get_location().map_or(false, |loc| loc.tag == location.tag) && 
-                                !self.dropped_objects.contains_key(&obj.tag)) ||
-                            self.dropped_objects.get(&obj.tag).map_or(false, |&loc| loc.tag == location.tag)) &&
-                            !self.inventory.iter().any(|inv_obj| inv_obj.tag == obj.tag)
-                        })
-                        .filter(|&obj| 
-                            (obj.visible || self.discovered_objects.contains(&obj.tag)) &&
-                            obj.object_type == ObjectType::Item)
-                        .collect::<Vec<_>>()
-                } else {
-                    Vec::new()
-                }
-            };
-
-            if objects_in_location.iter().any(|obj| obj.tag == object.tag) {
-                // Check if the object is an item
-                if object.object_type == ObjectType::Item {
-                    self.dropped_objects.remove(&object.tag);
-                    self.inventory.push(object);
-                    println!("Has cogido {} y lo has añadido a tu inventario.", object.description);
-                    return true;
-                } else {
-                    println!("No puedes coger eso.");
-                }
+            if let Some(item) = available_items.iter().find(|item| item.base.tag == item_tag) {
+                // Si el item estaba en su ubicación original, lo removemos de dropped_items
+                self.dropped_items.remove(&item.base.tag);
+                self.inventory.push(item.base.tag.clone());
+                println!("Has cogido {} y lo has añadido a tu inventario.", item.base.description);
+                return true;
             } else {
                 println!("No hay ningún objeto con ese nombre aquí.");
-                if !objects_in_location.is_empty() {
+                if !available_items.is_empty() {
                     println!("\nPuedes coger:");
-                    for (i, obj) in objects_in_location.iter().enumerate() {
-                        if i == objects_in_location.len() - 1 {
-                            println!("- {} [{}].", obj.description, obj.tag);
+                    for (i, item) in available_items.iter().enumerate() {
+                        if i == available_items.len() - 1 {
+                            println!("- {} [{}].", item.base.description, item.base.tag);
                         } else {
-                            println!("- {} [{}],", obj.description, obj.tag);
+                            println!("- {} [{}],", item.base.description, item.base.tag);
                         }
                     }
                 } else {
@@ -122,24 +137,26 @@ impl<'a> Player<'a> {
             println!("Tu inventario está vacío.");
         } else {
             println!("Tu inventario contiene:");
-            for (i, item) in self.inventory.iter().enumerate() {
-                if i == self.inventory.len() - 1 {
-                    println!("- {}.", item.description);
-                } else {
-                    println!("- {},", item.description);
+            for (i, item_tag) in self.inventory.iter().enumerate() {
+                if let Some(item) = find_item(item_tag) {
+                    if i == self.inventory.len() - 1 {
+                        println!("- {}.", item.base.description);
+                    } else {
+                        println!("- {},", item.base.description);
+                    }
                 }
             }
         }
     }
 
     pub fn has_item(&self, tag: &str) -> bool {
-        self.inventory.iter().any(|item| item.tag == tag)
+        self.inventory.contains(&tag.to_string())
     }
 
     pub fn execute_search(&mut self) -> bool {
-        if let Some(location) = self.current_location {
+        if let Some(location_tag) = &self.current_location {
             // Obtener el número de intentos en esta sala
-            let attempts = self.search_attempts.entry(location.tag.clone()).or_insert(0);
+            let attempts = self.search_attempts.entry(location_tag.clone()).or_insert(0);
             *attempts += 1;
 
             // Calcular probabilidad de éxito
@@ -154,9 +171,6 @@ impl<'a> Player<'a> {
                 success_chance += 20;
             }
 
-            // Reducir por dificultad base (podríamos hacer esto más sofisticado)
-            success_chance -= 0;
-
             // Asegurar que la probabilidad esté entre 5% y 95%
             success_chance = success_chance.max(5).min(95);
 
@@ -168,21 +182,16 @@ impl<'a> Player<'a> {
                 // Éxito en la búsqueda
                 println!("¡Has encontrado algo!");
                 
-                // Buscar objetos ocultos en la sala
-                let objects_in_location = {
-                    let tag: &str = &location.tag;
-                    if let Some(location) = LOCATIONS.iter().find(|&loc| loc.tag == tag) {
-                        OBJECTS.iter()
-                            .filter(|&obj| obj.get_location() == Some(location) && !obj.visible && !self.discovered_objects.contains(&obj.tag))
-                            .collect::<Vec<_>>()
-                    } else {
-                        Vec::new()
-                    }
-                };
+                // Buscar items ocultos en la sala
+                let items = get_items_in_location(location_tag);
+                let hidden_items: Vec<_> = items.iter()
+                    .filter(|item| !item.base.visible && !self.discovered_items.contains(&item.base.tag))
+                    .collect();
+
                 let mut found_something = false;
-                for object in objects_in_location {
-                    println!("Has descubierto {}", object.description);
-                    self.discovered_objects.insert(object.tag.clone());
+                for item in hidden_items {
+                    println!("Has descubierto {}", item.base.description);
+                    self.discovered_items.insert(item.base.tag.clone());
                     found_something = true;
                 }
 
@@ -191,7 +200,7 @@ impl<'a> Player<'a> {
                 }
 
                 // Reiniciar contador de intentos para esta sala
-                self.search_attempts.remove(&location.tag);
+                self.search_attempts.remove(location_tag);
                 return true;
             } else {
                 println!("No encuentras nada especial...");
@@ -200,12 +209,16 @@ impl<'a> Player<'a> {
         false
     }
 
-    pub fn execute_drop(&mut self, object: &'a Object<'a>) -> bool {
-        if let Some(location) = self.current_location {
-            if let Some(index) = self.inventory.iter().position(|&obj| obj.tag == object.tag) {
+    pub fn execute_drop(&mut self, item_tag: &str) -> bool {
+        if let Some(location_tag) = &self.current_location {
+            if let Some(index) = self.inventory.iter().position(|tag| tag == item_tag) {
+                // Remover el item del inventario
                 self.inventory.remove(index);
-                self.dropped_objects.insert(object.tag.clone(), location);
-                println!("Has soltado {}.", object.description);
+                // Añadir el item a dropped_items con la ubicación actual
+                self.dropped_items.insert(item_tag.to_string(), location_tag.clone());
+                if let Some(item) = find_item(item_tag) {
+                    println!("Has soltado {}.", item.base.description);
+                }
                 return true;
             } else {
                 println!("No tienes ese objeto en tu inventario.");

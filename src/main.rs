@@ -6,77 +6,43 @@ mod models {
 mod parsexec;
 
 use std::io::{self, Write};
-use models::character::{parse_new_character, Character};
-use models::player::Player;
-use crate::models::object::{find_object_by_tag};
+use crate::models::player::Player;
+use crate::models::character::{Character, Class};
+use crate::parsexec::{parse_command, execute_command};
 
-const PROMPT: &str = "> ";
-
-fn prompt() {
-    print!("{}", PROMPT);
-}
-
-fn print_character_classes() {
-    println!("Guerrero")
-}
-
-fn initial_characters() -> Vec<Character> {
-    let mut initial_characters = Vec::new();
-    println!("Decide quién irá en primer lugar.");
-    let first_character = create_new_character();
-    initial_characters.push(first_character);
-    println!("Quién irá en segundo lugar?");
-    let second_character = create_new_character();
-    initial_characters.push(second_character);
-    println!("Quién irá en tercer lugar?");
-    let third_character = create_new_character();
-    initial_characters.push(third_character);
-    println!("Quién irá en cuarto lugar?");
-    let fourth_character = create_new_character();
-    initial_characters.push(fourth_character);
-    println!("Qué buen grupo de aventureros!");
-    initial_characters
-}
-
-fn create_new_character() -> Character {
-    println!("Opciones:");
-    print_character_classes();
-    let input = capture_input();
-    let new_character = parse_new_character(input);
-    if !new_character.is_ok() {
-        return create_new_character();
-    }
-    new_character.unwrap()
-}
-
-fn capture_input() -> String {
-    prompt();
-    io::stdout().flush().unwrap();
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
-    input
-}
-
-fn main() {    
-    println!("Bienvenido a \"Aventura en Woodspring\".");
-    println!("Lo primero que debes hacer es crear un grupo de 4 aventureros.");
-    let inital_characters = initial_characters();
-    let mut player = Player::new(inital_characters);
-    println!("(Escribe \"salir\" para salir, \"ayuda\" para lista de comandos básicos.)");
-    let initial_location = find_object_by_tag("pueblo");
-    player.execute_go(initial_location);
+fn main() {
+    println!("Bienvenido a Aventura en Woodspring");
+    println!("Crea tu grupo de aventureros (4 personajes):");
     
-    let mut _turn = 0;
+    let mut characters = Vec::new();
+    for i in 1..=4 {
+        println!("\nPersonaje {}", i);
+        println!("Elige una clase:");
+        println!("1. Guerrero");
+        
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).expect("Error al leer la entrada");
+        
+        let character = match input.trim() {
+            "1" => Character::new(Class::Fighter),
+            _ => Character::new(Class::Fighter)
+        };
+        characters.push(character);
+    }
+    
+    let mut player = Player::new(characters);
+    player.execute_go(Some("cueva".to_string()));
+    
+    println!("\nEscribe 'ayuda' para ver los comandos disponibles.");
     
     loop {
-        let input = capture_input();
-        let game_command = parsexec::parse_command(&input);
-
-        if game_command.is_some() {
-            if !parsexec::execute_command(&mut player, &game_command.unwrap()) {
-                continue;
-            }
-            _turn += 1; // command executed ok
-        }                
+        print!("\n> ");
+        io::stdout().flush().unwrap();
+        
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).expect("Error al leer la entrada");
+        
+        let command = parse_command(&input);
+        execute_command(command, &mut player);
     }
 }
