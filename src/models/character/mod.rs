@@ -1,6 +1,4 @@
 use std::fmt::{Display, Formatter};
-use crate::models::location::Location;
-use crate::parsexec::Command;
 
 #[derive(Debug)]
 pub enum Class {
@@ -35,12 +33,12 @@ impl Character {
     }
 }
 
-pub fn parse_new_character(input: &str) -> Result<Character, String> {
+pub fn parse_new_character(input: String) -> Result<Character, String> {
     let input = input.trim().to_lowercase();
     let mut words = input.split_whitespace();
 
     match words.next() {
         Some("guerrero") => Ok(Character::new(Class::Fighter)),
-        _ => Result::Err("Clase incorrecta.".to_string()),
+        _ => Err("Clase incorrecta.".to_string()),
     }
 }
