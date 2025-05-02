@@ -107,17 +107,17 @@ lazy_static! {
         let location_tesoro = &LOCATIONS[8];
         
         vec![
-            Object::new("venda", "una venda limpia.", ObjectType::Item, Some(&location_cueva), false),
-            Object::new("cuerda", "una cuerda en buen estado.", ObjectType::Item, Some(&location_campo), false),
-            Object::new("moneda-plata-0", "una moneda de plata.", ObjectType::Item, Some(&location_campo), false),
-            Object::new("antorcha", "una antorcha.", ObjectType::Item, Some(&location_cueva), true),
-            Object::new("guardia", "una guardia de aspecto amable, armado con una lanza y armadura ligera de cuero.", ObjectType::NPC, Some(&location_pueblo), true),
+            Object::new("venda", "una venda limpia", ObjectType::Item, Some(&location_cueva), false),
+            Object::new("cuerda", "una cuerda en buen estado", ObjectType::Item, Some(&location_campo), false),
+            Object::new("moneda-plata-0", "una moneda de plata", ObjectType::Item, Some(&location_campo), false),
+            Object::new("antorcha", "una antorcha", ObjectType::Item, Some(&location_cueva), true),
+            Object::new("guardia", "una guardia de aspecto amable, armado con una lanza y armadura ligera de cuero", ObjectType::NPC, Some(&location_pueblo), true),
             // Hidden passages
-            Object::new_passage("grieta", "una grieta estrecha en la pared trasera de la cueva. Parece que se puede pasar por ella.", Some(&location_cueva), &location_camara, false),
-            Object::new_passage("corredor", "un estrecho corredor, termina en una puerta de piedra con símbolos grabados.", Some(&location_cueva), &location_camara, false),
-            Object::new_passage("puerta", "una puerta de piedra con símbolos grabados.", Some(&location_camara), &location_laboratorio, true),
-            Object::new_passage("pasillo", "un pasillo oscuro que desciende.", Some(&location_laboratorio), &location_biblioteca, true),
-            Object::new_passage("escalera", "una escalera de caracol que sube.", Some(&location_biblioteca), &location_tesoro, true),
+            Object::new_passage("grieta", "una grieta estrecha en la pared trasera de la cueva. Parece que se puede pasar por ella", Some(&location_cueva), &location_camara, false),
+            Object::new_passage("corredor", "un estrecho corredor, termina en una puerta de piedra con símbolos grabados", Some(&location_cueva), &location_camara, false),
+            Object::new_passage("puerta", "una puerta de piedra con símbolos grabados", Some(&location_camara), &location_laboratorio, true),
+            Object::new_passage("pasillo", "un pasillo oscuro que desciende", Some(&location_laboratorio), &location_biblioteca, true),
+            Object::new_passage("escalera", "una escalera de caracol que sube", Some(&location_biblioteca), &location_tesoro, true),
         ]
     };
 }

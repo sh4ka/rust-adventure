@@ -36,9 +36,6 @@ impl<'a> Player<'a> {
             if let Some(location) = LOCATIONS.iter().find(|&loc| loc.tag == tag) {
                 OBJECTS.iter()
                     .filter(|&obj| {
-                        // El objeto está en la ubicación actual si:
-                        // 1. Está en su ubicación original y no ha sido soltado en otro lugar
-                        // 2. Ha sido soltado en la ubicación actual
                         ((obj.get_location().map_or(false, |loc| loc.tag == location.tag) && 
                             !self.dropped_objects.contains_key(&obj.tag)) ||
                         self.dropped_objects.get(&obj.tag).map_or(false, |&loc| loc.tag == location.tag)) &&
@@ -52,8 +49,12 @@ impl<'a> Player<'a> {
         };
         if objects_in_location.len() > 0 {
             println!("Puedes ver:");
-            for object in objects_in_location {
-                println!("- {}", object.description);
+            for (i, object) in objects_in_location.iter().enumerate() {
+                if i == objects_in_location.len() - 1 {
+                    println!("- {}.", object.description);
+                } else {
+                    println!("- {},", object.description);
+                }
             }
         }
     }
@@ -73,9 +74,6 @@ impl<'a> Player<'a> {
                 if let Some(location) = LOCATIONS.iter().find(|&loc| loc.tag == tag) {
                     OBJECTS.iter()
                         .filter(|&obj| {
-                            // El objeto está en la ubicación actual si:
-                            // 1. Está en su ubicación original y no ha sido soltado en otro lugar
-                            // 2. Ha sido soltado en la ubicación actual
                             ((obj.get_location().map_or(false, |loc| loc.tag == location.tag) && 
                                 !self.dropped_objects.contains_key(&obj.tag)) ||
                             self.dropped_objects.get(&obj.tag).map_or(false, |&loc| loc.tag == location.tag)) &&
@@ -93,7 +91,6 @@ impl<'a> Player<'a> {
             if objects_in_location.iter().any(|obj| obj.tag == object.tag) {
                 // Check if the object is an item
                 if object.object_type == ObjectType::Item {
-                    // Si el objeto estaba en su ubicación original, lo removemos de dropped_objects
                     self.dropped_objects.remove(&object.tag);
                     self.inventory.push(object);
                     println!("Has cogido {} y lo has añadido a tu inventario.", object.description);
@@ -105,8 +102,12 @@ impl<'a> Player<'a> {
                 println!("No hay ningún objeto con ese nombre aquí.");
                 if !objects_in_location.is_empty() {
                     println!("\nPuedes coger:");
-                    for obj in objects_in_location {
-                        println!("- {} [{}]", obj.description, obj.tag);
+                    for (i, obj) in objects_in_location.iter().enumerate() {
+                        if i == objects_in_location.len() - 1 {
+                            println!("- {} [{}].", obj.description, obj.tag);
+                        } else {
+                            println!("- {} [{}],", obj.description, obj.tag);
+                        }
                     }
                 } else {
                     println!("No hay nada que puedas coger aquí.");
@@ -121,8 +122,12 @@ impl<'a> Player<'a> {
             println!("Tu inventario está vacío.");
         } else {
             println!("Tu inventario contiene:");
-            for item in &self.inventory {
-                println!("- {}", item.description);
+            for (i, item) in self.inventory.iter().enumerate() {
+                if i == self.inventory.len() - 1 {
+                    println!("- {}.", item.description);
+                } else {
+                    println!("- {},", item.description);
+                }
             }
         }
     }
@@ -197,11 +202,8 @@ impl<'a> Player<'a> {
 
     pub fn execute_drop(&mut self, object: &'a Object<'a>) -> bool {
         if let Some(location) = self.current_location {
-            // Verificar si el objeto está en el inventario
             if let Some(index) = self.inventory.iter().position(|&obj| obj.tag == object.tag) {
-                // Remover el objeto del inventario
                 self.inventory.remove(index);
-                // Añadir el objeto a dropped_objects con la ubicación actual
                 self.dropped_objects.insert(object.tag.clone(), location);
                 println!("Has soltado {}.", object.description);
                 return true;
