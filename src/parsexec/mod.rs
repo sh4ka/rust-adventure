@@ -13,6 +13,8 @@ pub enum Command {
     Help,
     Exit,
     Attack,
+    Status,
+    Combat,
     Unknown,
 }
 
@@ -70,6 +72,7 @@ pub fn parse_command(input: &str) -> GameCommand {
         "buscar" => GameCommand::new(Command::Search),
         "ayuda" => GameCommand::new(Command::Help),
         "salir" => GameCommand::new(Command::Exit),
+        "estado" => GameCommand::new(Command::Status),
         "atacar" => {
             if words.len() > 1 {
                 GameCommand::new(Command::Attack).with_target(words[1].to_string())
@@ -77,6 +80,10 @@ pub fn parse_command(input: &str) -> GameCommand {
                 GameCommand::new(Command::Attack)
             }
         },
+        "1" => GameCommand::new(Command::Combat).with_target("continuar".to_string()),
+        "2" => GameCommand::new(Command::Combat).with_target("huir".to_string()),
+        "3" => GameCommand::new(Command::Combat).with_target("usar".to_string()),
+        "4" => GameCommand::new(Command::Combat).with_target("estado".to_string()),
         _ => GameCommand::new(Command::Unknown),
     }
 }
@@ -111,6 +118,7 @@ pub fn execute_command(command: GameCommand, player: &mut Player) -> String {
             player.execute_inventory();
             "".to_string()
         },
+        Command::Status => player.execute_status(),
         Command::Search => {
             if player.execute_search() {
                 "".to_string()
@@ -125,10 +133,16 @@ pub fn execute_command(command: GameCommand, player: &mut Player) -> String {
             help.push_str("  coger <objeto> - Coger un objeto\n");
             help.push_str("  soltar <objeto> - Soltar un objeto\n");
             help.push_str("  inventario - Ver tu inventario\n");
+            help.push_str("  estado - Ver el estado del grupo\n");
             help.push_str("  buscar - Buscar objetos ocultos\n");
             help.push_str("  atacar <enemigo> - Atacar a un enemigo\n");
             help.push_str("  ayuda - Mostrar esta ayuda\n");
-            help.push_str("  salir - Salir del juego");
+            help.push_str("  salir - Salir del juego\n");
+            help.push_str("\nDurante el combate:\n");
+            help.push_str("  1 - Continuar el combate\n");
+            help.push_str("  2 - Huir\n");
+            help.push_str("  3 - Usar un objeto\n");
+            help.push_str("  4 - Ver estado detallado");
             help
         },
         Command::Exit => "¡Hasta luego!".to_string(),
@@ -137,6 +151,21 @@ pub fn execute_command(command: GameCommand, player: &mut Player) -> String {
                 player.execute_attack(&target)
             } else {
                 "¿A quién quieres atacar?".to_string()
+            }
+        },
+        Command::Combat => {
+            if let Some(action) = command.target {
+                match action.as_str() {
+                    "continuar" => player.execute_attack("continuar"),
+                    "huir" => {
+                        "¡Huyes del combate!".to_string()
+                    },
+                    "usar" => "Función no implementada aún.".to_string(),
+                    "estado" => player.execute_status(),
+                    _ => "Opción no válida.".to_string(),
+                }
+            } else {
+                "Opción no válida.".to_string()
             }
         },
         Command::Unknown => "No entiendo ese comando.".to_string(),

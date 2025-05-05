@@ -15,6 +15,7 @@ pub struct Player {
     pub picked_items: HashSet<String>,        // Tags de items recogidos
     pub discovered_locations: HashSet<String>, // Tags de localizaciones descubiertas
     pub defeated_npcs: HashSet<String>,        // Tags de NPCs derrotados
+    pub current_combat_enemies: Option<u8>,    // Número de enemigos restantes en el combate actual
 }
 
 impl Player {
@@ -29,6 +30,7 @@ impl Player {
             picked_items: HashSet::new(),
             discovered_locations: HashSet::new(),
             defeated_npcs: HashSet::new(),
+            current_combat_enemies: None,
         }
     }
 
@@ -85,9 +87,9 @@ impl Player {
                     }
                     for npc in visible_npcs {
                         let attitude = match npc.attitude {
-                            Attitude::Hostile => " (hostil)",
-                            Attitude::Neutral => " (neutral)",
-                            Attitude::Friendly => " (amistoso)",
+                            Attitude::Hostile => format!(" (hostil, nivel {}, x{})", npc.level, npc.count),
+                            Attitude::Neutral => " (neutral)".to_string(),
+                            Attitude::Friendly => " (amistoso)".to_string(),
                         };
                         response.push_str(&format!("- {}{}\n", npc.base.description, attitude));
                     }
@@ -231,6 +233,23 @@ impl Player {
         }
     }
 
+    pub fn execute_status(&self) -> String {
+        let mut response = String::new();
+        response.push_str("Estado del grupo:\n");
+        
+        for (i, character) in self.characters.iter().enumerate() {
+            response.push_str(&format!(
+                "Aventurero {} (nivel {}): {} PV/{} PV\n",
+                i + 1,
+                character.level,
+                character.hit_points,
+                character.max_hit_points
+            ));
+        }
+        
+        response
+    }
+
     pub fn has_item(&self, tag: &str) -> bool {
         self.inventory.iter().any(|item| item.base.tag == tag)
     }
@@ -341,125 +360,160 @@ impl Player {
     }
 
     pub fn execute_attack(&mut self, target_tag: &str) -> String {
+        let mut response = String::new();
+        
+        // Si el comando es "continuar", no mostrar el mensaje de inicio
+        if target_tag != "continuar" {
+            response.push_str("¡Comienza el combate!\n");
+        }
+
+        // Obtener NPCs hostiles en la ubicación actual
         if let Some(location_tag) = &self.current_location {
             if let Some(location) = find_location(location_tag) {
-                // Buscar todos los NPCs hostiles en la ubicación actual
-                let hostile_npcs: Vec<_> = location.content.npcs.iter()
+                let hostile_npcs: Vec<&NPC> = location.content.npcs.iter()
                     .filter_map(|npc_tag| find_npc(npc_tag))
                     .filter(|npc| npc.attitude == Attitude::Hostile && !self.defeated_npcs.contains(&npc.base.tag))
                     .collect();
 
                 if hostile_npcs.is_empty() {
-                    return "No hay enemigos hostiles aquí.".to_string();
+                    self.current_combat_enemies = None;
+                    return "No hay enemigos para atacar aquí.".to_string();
                 }
 
-                let mut response = format!("\nCombate contra {} enemigos:\n", hostile_npcs.len());
-                for npc in &hostile_npcs {
-                    response.push_str(&format!("- {} (nivel {})\n", npc.base.description, npc.level));
-                }
+                // Usar el número de enemigos guardado o calcular el total inicial
+                let mut enemies_remaining = if self.current_combat_enemies.is_some() {
+                    self.current_combat_enemies.unwrap()
+                } else {
+                    let total_enemies: u8 = hostile_npcs.iter().map(|npc| npc.count).sum();
+                    total_enemies
+                };
 
-                let mut remaining_enemies = hostile_npcs.len();
-                let mut rng = rand::thread_rng();
-
-                // Ataque de los jugadores
-                response.push_str("\n--- ATAQUE DE LOS JUGADORES ---\n");
-                for (i, character) in self.characters.iter().enumerate() {
-                    if remaining_enemies == 0 {
-                        break; // Si no quedan enemigos, terminamos los ataques
-                    }
-
-                    let roll = rng.gen_range(1..=6);
-                    let mut remaining_points = roll + character.level as i32;
-                    
-                    response.push_str(&format!("\nAventurero {} (nivel {}):\n", i + 1, character.level));
-                    response.push_str(&format!("Tirada: {} + {} = {}\n", roll, character.level, remaining_points));
-                    
-                    // Contar cuántos enemigos puede derrotar con este ataque
+                // Rondas de combate
+                while enemies_remaining > 0 {
+                    // Fase de ataque de los aventureros
+                    response.push_str("\nAtaque de los aventureros:\n");
                     let mut enemies_defeated = 0;
-                    for npc in &hostile_npcs {
-                        // Para derrotar a un enemigo, el total debe ser >= su nivel
-                        // Cada enemigo derrotado consume tantos puntos como su nivel
-                        if enemies_defeated < remaining_enemies && remaining_points >= npc.level as i32 {
-                            remaining_points -= npc.level as i32;
+                    for (i, character) in self.characters.iter_mut().enumerate() {
+                        if enemies_remaining == 0 {
+                            break;
+                        }
+
+                        let attack_roll = rand::thread_rng().gen_range(1..=6);
+                        let attack_total = attack_roll + character.level as i32;
+                        let npc = &hostile_npcs[0]; // Todos los enemigos son del mismo tipo
+                        
+                        response.push_str(&format!(
+                            "Aventurero {} (nivel {}) tira {} + {} = {}\n",
+                            i + 1, character.level, attack_roll, character.level, attack_total
+                        ));
+
+                        if attack_total >= npc.level as i32 {
                             enemies_defeated += 1;
+                            enemies_remaining -= 1;
+                            response.push_str(&format!(
+                                "¡Aventurero {} derrota a un {}!\n",
+                                i + 1, npc.base.tag
+                            ));
+                        } else {
+                            response.push_str(&format!(
+                                "Aventurero {} falla el ataque contra el {}.\n",
+                                i + 1, npc.base.tag
+                            ));
                         }
                     }
-                    
-                    if enemies_defeated > 0 {
-                        // No podemos derrotar más enemigos de los que quedan
-                        enemies_defeated = enemies_defeated.min(remaining_enemies);
-                        remaining_enemies -= enemies_defeated;
 
-                        // Marcar los NPCs derrotados
-                        let mut defeated = 0;
-                        for npc in &hostile_npcs {
-                            if defeated < enemies_defeated && !self.defeated_npcs.contains(&npc.base.tag) {
-                                self.defeated_npcs.insert(npc.base.tag.clone());
-                                defeated += 1;
+                    // Solo los enemigos que quedan pueden contraatacar
+                    if enemies_remaining > 0 {
+                        response.push_str("\nContraataque de los enemigos:\n");
+                        let enemies_that_can_attack = enemies_remaining as usize;
+                        let num_characters = self.characters.len();
+                        
+                        // Calcular cuántos enemigos adicionales hay después de asignar uno a cada personaje
+                        let extra_enemies = if enemies_that_can_attack > num_characters {
+                            enemies_that_can_attack - num_characters
+                        } else {
+                            0
+                        };
+
+                        // Para cada personaje
+                        for (i, character) in self.characters.iter_mut().enumerate() {
+                            // Calcular cuántos enemigos atacan a este personaje
+                            let enemies_for_this_char = if i < extra_enemies {
+                                2 // Este personaje enfrenta a 2 enemigos
+                            } else if i < enemies_that_can_attack {
+                                1 // Este personaje enfrenta a 1 enemigo
+                            } else {
+                                0 // Este personaje no enfrenta enemigos
+                            };
+
+                            // Procesar los ataques de los enemigos asignados a este personaje
+                            for _ in 0..enemies_for_this_char {
+                                let npc = &hostile_npcs[0]; // Todos los enemigos son del mismo tipo
+                                let defense_roll = rand::thread_rng().gen_range(1..=6);
+                                response.push_str(&format!(
+                                    "Aventurero {} se defiende con {} contra el {}.\n",
+                                    i + 1, defense_roll, npc.base.tag
+                                ));
+
+                                if defense_roll == 1 {
+                                    // Fallo crítico
+                                    character.hit_points -= 1;
+                                    response.push_str(&format!(
+                                        "¡Fallo crítico! Aventurero {} recibe 1 punto de daño.\n",
+                                        i + 1
+                                    ));
+                                } else if defense_roll > npc.level as i32 || defense_roll == 6 {
+                                    // Defensa exitosa
+                                    response.push_str(&format!(
+                                        "Aventurero {} esquiva el ataque del {}.\n",
+                                        i + 1, npc.base.tag
+                                    ));
+                                } else {
+                                    // Ataque exitoso
+                                    character.hit_points -= 1;
+                                    response.push_str(&format!(
+                                        "Aventurero {} recibe 1 punto de daño del {}.\n",
+                                        i + 1, npc.base.tag
+                                    ));
+                                }
                             }
                         }
 
-                        response.push_str(&format!("¡Golpe certero! Derrota a {} enemigos.\n", enemies_defeated));
-                        
-                        if remaining_enemies == 0 {
-                            response.push_str("¡Todos los enemigos han sido derrotados!\n");
+                        // Guardar el número de enemigos restantes
+                        self.current_combat_enemies = Some(enemies_remaining);
+
+                        // Mostrar el estado actual del grupo
+                        response.push_str("\nEstado del grupo después del contraataque:\n");
+                        for (i, character) in self.characters.iter().enumerate() {
+                            response.push_str(&format!(
+                                "Aventurero {} (nivel {}): {} PV/{} PV\n",
+                                i + 1,
+                                character.level,
+                                character.hit_points,
+                                character.max_hit_points
+                            ));
                         }
-                    } else {
-                        response.push_str("El ataque falla.\n");
+
+                        // Interrumpir el combate para que el jugador decida qué hacer
+                        response.push_str(&format!("\nQuedan {} enemigos.\n", enemies_remaining));
+                        response.push_str("\n¿Qué quieres hacer?\n");
+                        response.push_str("1. Continuar el combate\n");
+                        response.push_str("2. Huir\n");
+                        response.push_str("3. Usar un objeto\n");
+                        response.push_str("4. Ver estado detallado\n");
+                        return response;
                     }
                 }
 
-                // Si quedan enemigos, atacan a los jugadores
-                if remaining_enemies > 0 {
-                    response.push_str("\n--- ATAQUE DE LOS ENEMIGOS ---\n");
-                    let remaining_hostile_npcs: Vec<_> = hostile_npcs.iter()
-                        .filter(|npc| !self.defeated_npcs.contains(&npc.base.tag))
-                        .collect();
+                // Combate terminado, limpiar el estado
+                self.current_combat_enemies = None;
 
-                    // Cada enemigo superviviente ataca a un personaje en orden
-                    for (i, npc) in remaining_hostile_npcs.iter().enumerate() {
-                        if i >= self.characters.len() {
-                            break; // Si no hay más personajes, terminamos los ataques
-                        }
-
-                        let character = &self.characters[i];
-                        let defense_roll = rng.gen_range(1..=6);
-                        
-                        response.push_str(&format!("\n{} ataca al Aventurero {}:\n", npc.base.description, i + 1));
-                        response.push_str(&format!("Tirada de defensa: {}\n", defense_roll));
-
-                        // Reglas especiales: 1 siempre falla, 6 siempre acierta
-                        if defense_roll == 1 {
-                            response.push_str("¡Fallo crítico! El ataque impacta.\n");
-                            let damage = 1; // Daño fijo de 1
-                            let actual_damage = self.characters[i].take_damage(damage);
-                            response.push_str(&format!("El Aventurero {} pierde {} puntos de vida. (HP: {}/{})\n", 
-                                i + 1, actual_damage, self.characters[i].hit_points, self.characters[i].max_hit_points));
-                        } else if defense_roll == 6 {
-                            response.push_str("¡Defensa perfecta! El ataque es esquivado.\n");
-                        } else if defense_roll > npc.level as i32 {
-                            response.push_str("¡Defensa exitosa! El ataque es esquivado.\n");
-                        } else {
-                            response.push_str("¡El ataque impacta!\n");
-                            let damage = 1; // Daño fijo de 1
-                            let actual_damage = self.characters[i].take_damage(damage);
-                            response.push_str(&format!("El Aventurero {} pierde {} puntos de vida. (HP: {}/{})\n", 
-                                i + 1, actual_damage, self.characters[i].hit_points, self.characters[i].max_hit_points));
-                        }
-
-                        // Verificar si el personaje ha sido derrotado
-                        if !self.characters[i].is_alive() {
-                            response.push_str(&format!("¡El Aventurero {} ha sido derrotado!\n", i + 1));
-                        }
-                    }
+                // Marcar los enemigos como derrotados
+                for npc in hostile_npcs {
+                    self.defeated_npcs.insert(npc.base.tag.clone());
                 }
 
-                if remaining_enemies == hostile_npcs.len() {
-                    response.push_str("\nEl grupo no pudo derrotar a ningún enemigo.");
-                } else if remaining_enemies > 0 {
-                    response.push_str(&format!("\nQuedan {} enemigos en pie.", remaining_enemies));
-                }
-
+                response.push_str("\n¡Combate terminado!\n");
                 return response;
             }
         }

@@ -87,6 +87,7 @@ pub struct NPC {
     pub dialogue: Vec<String>,   // Diálogos posibles del NPC
     pub attitude: Attitude,      // Actitud del NPC hacia el jugador
     pub level: u8,              // Nivel del NPC (1-20)
+    pub count: u8,              // Cantidad de NPCs de este tipo
 }
 
 #[derive(Debug, Clone)]
@@ -154,6 +155,7 @@ impl NPC {
             dialogue: Vec::new(),
             attitude: Attitude::Neutral, // Por defecto, los NPCs son neutrales
             level: 1,                    // Por defecto, los NPCs son nivel 1
+            count: 1,                    // Por defecto, hay 1 NPC
         }
     }
 
@@ -164,6 +166,11 @@ impl NPC {
 
     pub fn with_level(mut self, level: u8) -> Self {
         self.level = level.min(20).max(1); // Asegurar que el nivel esté entre 1 y 20
+        self
+    }
+
+    pub fn with_count(mut self, count: u8) -> Self {
+        self.count = count;
         self
     }
 
@@ -240,13 +247,8 @@ lazy_static! {
         pueblo.content.add_npc("guardia");
         
         // Añadir grupos de NPCs a sus ubicaciones
-        bosque.content.add_npc("goblin1");
-        bosque.content.add_npc("goblin2");
-        bosque.content.add_npc("goblin3");
-        
-        ruinas.content.add_npc("orco1");
-        ruinas.content.add_npc("orco2");
-        ruinas.content.add_npc("orco3");
+        bosque.content.add_npc("goblins");
+        ruinas.content.add_npc("orcos");
 
         // Añadir conexiones
         pueblo.add_connection("campo");
@@ -328,41 +330,19 @@ lazy_static! {
         guardia.add_dialogue("Ten cuidado en el bosque, dicen que hay criaturas extrañas.");
         m.insert("guardia".to_string(), guardia);
 
-        // Añadir grupos de NPCs hostiles
         // Grupo de goblins en el bosque
-        let mut goblin1 = NPC::new("goblin1", "un goblin armado con una daga oxidada", "bosque", true)
+        let mut goblins = NPC::new("goblins", "un grupo de goblins", "bosque", true)
             .with_attitude(Attitude::Hostile)
-            .with_level(1);
-        m.insert("goblin1".to_string(), goblin1);
+            .with_level(1)
+            .with_count(4);
+        m.insert("goblins".to_string(), goblins);
 
-        let mut goblin2 = NPC::new("goblin2", "un goblin con un garrote", "bosque", true)
+        // Grupo de orcos en las ruinas
+        let mut orcos = NPC::new("orcos", "un grupo de orcos", "ruinas", true)
             .with_attitude(Attitude::Hostile)
-            .with_level(1);
-        m.insert("goblin2".to_string(), goblin2);
-
-        let mut goblin3 = NPC::new("goblin3", "un goblin con un arco", "bosque", true)
-            .with_attitude(Attitude::Hostile)
-            .with_level(1);
-        m.insert("goblin3".to_string(), goblin3);
-
-        // Orcos
-        let mut orco1 = NPC::new("orco1", "un orco con una gran hacha a dos manos", "ruinas", true)
-            .with_attitude(Attitude::Hostile)
-            .with_level(6);
-        orco1.base.visible = true;
-        m.insert("orco1".to_string(), orco1);
-
-        let mut orco2 = NPC::new("orco2", "un orco con una maza", "ruinas", true)
-            .with_attitude(Attitude::Hostile)
-            .with_level(5);
-        orco2.base.visible = true;
-        m.insert("orco2".to_string(), orco2);
-
-        let mut orco3 = NPC::new("orco3", "un orco con una espada oxidada", "ruinas", true)
-            .with_attitude(Attitude::Hostile)
-            .with_level(5);
-        orco3.base.visible = true;
-        m.insert("orco3".to_string(), orco3);
+            .with_level(6)
+            .with_count(7);
+        m.insert("orcos".to_string(), orcos);
         
         m
     };
