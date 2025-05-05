@@ -86,6 +86,7 @@ pub struct NPC {
     pub location: String,        // Tag de la ubicación donde está el NPC
     pub dialogue: Vec<String>,   // Diálogos posibles del NPC
     pub attitude: Attitude,      // Actitud del NPC hacia el jugador
+    pub level: u8,              // Nivel del NPC (1-20)
 }
 
 #[derive(Debug, Clone)]
@@ -152,11 +153,17 @@ impl NPC {
             location: location.to_string(),
             dialogue: Vec::new(),
             attitude: Attitude::Neutral, // Por defecto, los NPCs son neutrales
+            level: 1,                    // Por defecto, los NPCs son nivel 1
         }
     }
 
     pub fn with_attitude(mut self, attitude: Attitude) -> Self {
         self.attitude = attitude;
+        self
+    }
+
+    pub fn with_level(mut self, level: u8) -> Self {
+        self.level = level.min(20).max(1); // Asegurar que el nivel esté entre 1 y 20
         self
     }
 
@@ -231,6 +238,8 @@ lazy_static! {
         campo.content.add_item(Item::new("cuerda", "una cuerda en buen estado", false));
         campo.content.add_item(Item::new("moneda", "una moneda de plata", false));
         pueblo.content.add_npc("guardia");
+        bosque.content.add_npc("goblin");
+        ruinas.content.add_npc("orco");
 
         // Añadir conexiones
         pueblo.add_connection("campo");
@@ -306,10 +315,22 @@ lazy_static! {
         
         // Crear NPCs
         let mut guardia = NPC::new("guardia", "una guardia de aspecto amable, armada con una lanza y armadura ligera de cuero", "pueblo", true)
-            .with_attitude(Attitude::Friendly);
+            .with_attitude(Attitude::Friendly)
+            .with_level(3);
         guardia.add_dialogue("Bienvenido a Woodspring. ¿En qué puedo ayudarte?");
         guardia.add_dialogue("Ten cuidado en el bosque, dicen que hay criaturas extrañas.");
         m.insert("guardia".to_string(), guardia);
+
+        // Añadir NPCs hostiles
+        let mut goblin = NPC::new("goblin", "un goblin armado con una daga oxidada", "bosque", true)
+            .with_attitude(Attitude::Hostile)
+            .with_level(1);
+        m.insert("goblin".to_string(), goblin);
+
+        let mut orco = NPC::new("orco", "un orco con una gran hacha", "ruinas", true)
+            .with_attitude(Attitude::Hostile)
+            .with_level(2);
+        m.insert("orco".to_string(), orco);
         
         m
     };

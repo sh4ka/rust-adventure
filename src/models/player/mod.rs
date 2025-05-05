@@ -14,6 +14,7 @@ pub struct Player {
     pub dropped_items: HashMap<String, String>, // tag -> ubicación donde se soltó
     pub picked_items: HashSet<String>,        // Tags de items recogidos
     pub discovered_locations: HashSet<String>, // Tags de localizaciones descubiertas
+    pub defeated_npcs: HashSet<String>,        // Tags de NPCs derrotados
 }
 
 impl Player {
@@ -27,6 +28,7 @@ impl Player {
             dropped_items: HashMap::new(),
             picked_items: HashSet::new(),
             discovered_locations: HashSet::new(),
+            defeated_npcs: HashSet::new(),
         }
     }
 
@@ -98,6 +100,11 @@ impl Player {
     }
 
     pub fn execute_go(&mut self, location_tag: Option<&str>) -> String {
+        // Verificar si hay enemigos hostiles en la ubicación actual
+        if self.has_hostile_npcs() {
+            return "¡No puedes huir! Hay enemigos hostiles aquí.".to_string();
+        }
+
         match location_tag {
             Some(tag) => {
                 if let Some(current_location) = self.current_location.as_ref() {
@@ -331,5 +338,65 @@ impl Player {
             response.push_str("No hay salidas disponibles desde aquí.");
         }
         response
+    }
+
+    pub fn execute_attack(&mut self, target_tag: &str) -> String {
+        if let Some(location_tag) = &self.current_location {
+            if let Some(location) = find_location(location_tag) {
+                // Buscar el NPC en la ubicación actual
+                if let Some(npc) = location.content.npcs.iter()
+                    .filter_map(|npc_tag| find_npc(npc_tag))
+                    .find(|npc| npc.base.tag == target_tag) {
+                    
+                    // Verificar si el NPC es hostil
+                    if npc.attitude != Attitude::Hostile {
+                        return format!("No puedes atacar a {}, no es hostil.", npc.base.description);
+                    }
+
+                    let mut response = format!("\nCombate contra {} (nivel {})\n", npc.base.description, npc.level);
+                    let mut total_damage = 0;
+                    let mut rng = rand::thread_rng();
+
+                    // Cada personaje ataca por turno
+                    for (i, character) in self.characters.iter().enumerate() {
+                        let roll = rng.gen_range(1..=6);
+                        let total = roll + character.level as i32;
+                        
+                        response.push_str(&format!("\nAventurero {} (nivel {}):\n", i + 1, character.level));
+                        response.push_str(&format!("Tirada: {} + {} = {}\n", roll, character.level, total));
+                        
+                        if total > npc.level as i32 {
+                            total_damage += 1;
+                            response.push_str("¡Golpe certero!\n");
+                        } else {
+                            response.push_str("El ataque falla.\n");
+                        }
+                    }
+
+                    if total_damage > 0 {
+                        // Marcar el NPC como derrotado
+                        self.defeated_npcs.insert(target_tag.to_string());
+                        response.push_str(&format!("\n¡El grupo ha derrotado a {}!", npc.base.description));
+                    } else {
+                        response.push_str(&format!("\nEl grupo no pudo derrotar a {}.", npc.base.description));
+                    }
+
+                    return response;
+                }
+                return format!("No hay ningún {} aquí.", target_tag);
+            }
+        }
+        "No estás en ninguna ubicación.".to_string()
+    }
+
+    pub fn has_hostile_npcs(&self) -> bool {
+        if let Some(location_tag) = &self.current_location {
+            if let Some(location) = find_location(location_tag) {
+                return !location.content.npcs.is_empty() && location.content.npcs.iter()
+                    .filter_map(|npc_tag| find_npc(npc_tag))
+                    .any(|npc| npc.attitude == Attitude::Hostile && !self.defeated_npcs.contains(&npc.base.tag));
+            }
+        }
+        false
     }
 }

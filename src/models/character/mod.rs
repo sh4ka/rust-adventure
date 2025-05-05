@@ -15,7 +15,7 @@ impl Display for Class {
 pub struct Character {
     pub(crate) class: Class,
     hit_points: u32,
-    level: u32,
+    pub level: u32,
 }
 
 fn get_hit_points(class: &Class, level: u32) -> u32 {

@@ -12,6 +12,7 @@ pub enum Command {
     Search,
     Help,
     Exit,
+    Attack,
     Unknown,
 }
 
@@ -69,6 +70,13 @@ pub fn parse_command(input: &str) -> GameCommand {
         "buscar" => GameCommand::new(Command::Search),
         "ayuda" => GameCommand::new(Command::Help),
         "salir" => GameCommand::new(Command::Exit),
+        "atacar" => {
+            if words.len() > 1 {
+                GameCommand::new(Command::Attack).with_target(words[1].to_string())
+            } else {
+                GameCommand::new(Command::Attack)
+            }
+        },
         _ => GameCommand::new(Command::Unknown),
     }
 }
@@ -118,11 +126,19 @@ pub fn execute_command(command: GameCommand, player: &mut Player) -> String {
             help.push_str("  soltar <objeto> - Soltar un objeto\n");
             help.push_str("  inventario - Ver tu inventario\n");
             help.push_str("  buscar - Buscar objetos ocultos\n");
+            help.push_str("  atacar <enemigo> - Atacar a un enemigo\n");
             help.push_str("  ayuda - Mostrar esta ayuda\n");
             help.push_str("  salir - Salir del juego");
             help
         },
         Command::Exit => "¡Hasta luego!".to_string(),
+        Command::Attack => {
+            if let Some(target) = command.target {
+                player.execute_attack(&target)
+            } else {
+                "¿A quién quieres atacar?".to_string()
+            }
+        },
         Command::Unknown => "No entiendo ese comando.".to_string(),
     }
 }
