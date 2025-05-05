@@ -197,7 +197,7 @@ lazy_static! {
             .with_long_description("Unas ruinas pertenecientes a un antiguo templo. La hiedra cubre gran parte de lo que antaño fueron majestuosas columnas de mármol. Los símbolos grabados en las piedras están desgastados por el tiempo, pero aún se pueden distinguir algunos detalles. El aire aquí es más fresco y hay un silencio reverencial que sugiere que este lugar fue importante en el pasado.");
         
         // Ubicaciones ocultas
-        let mut grieta = Location::new("grieta", "una grieta en la pared", true)
+        let mut grieta = Location::new("grieta", "una grieta en la pared", false)
             .with_long_description("Una grieta estrecha en el fondo de la cueva. A través de ella se puede ver un corredor oscuro. El espacio es justo lo suficientemente grande para que una persona pueda pasar, pero requiere cierta agilidad. El aire que viene del otro lado es más frío y huele a humedad y antigüedad.");
         let mut corredor = Location::new("corredor", "un corredor oscuro", true)
             .with_long_description("Un corredor estrecho y oscuro que termina en una puerta de piedra con símbolos grabados. Las paredes están húmedas y el suelo es irregular. La única iluminación proviene de la grieta por la que entraste, creando sombras que bailan en las paredes.");
@@ -215,7 +215,7 @@ lazy_static! {
         // Añadir contenido a las ubicaciones
         cueva.content.add_item(Item::new("antorcha", "una antorcha", true));
         campo.content.add_item(Item::new("cuerda", "una cuerda en buen estado", false));
-        campo.content.add_item(Item::new("moneda-plata-0", "una moneda de plata", false));
+        campo.content.add_item(Item::new("moneda", "una moneda de plata", false));
         pueblo.content.add_npc("guardia");
 
         // Añadir conexiones
@@ -281,7 +281,7 @@ lazy_static! {
         // Crear items
         m.insert("venda".to_string(), Item::new("venda", "una venda limpia", false));
         m.insert("cuerda".to_string(), Item::new("cuerda", "una cuerda en buen estado", false));
-        m.insert("moneda-plata-0".to_string(), Item::new("moneda-plata-0", "una moneda de plata", false));
+        m.insert("moneda".to_string(), Item::new("moneda", "una moneda de plata", false));
         m.insert("antorcha".to_string(), Item::new("antorcha", "una antorcha", true));
 
         m
@@ -305,12 +305,12 @@ lazy_static! {
         // Crear pasajes
         m.insert("grieta".to_string(), Passage::new("grieta", "una grieta estrecha en la pared trasera de la cueva. Parece que se puede pasar por ella", "cueva", "grieta", false));
         m.insert("corredor".to_string(), Passage::new("corredor", "un estrecho corredor, termina en una puerta de piedra con símbolos grabados", "grieta", "corredor", false));
-        m.insert("puerta".to_string(), Passage::new("puerta", "una puerta de piedra con símbolos grabados", "corredor", "camara", false));
-        m.insert("laboratorio".to_string(), Passage::new("laboratorio", "un pasillo que conduce al laboratorio", "camara", "laboratorio", true)
+        m.insert("puerta".to_string(), Passage::new("puerta", "una puerta de piedra con símbolos grabados", "corredor", "camara", true)
             .with_riddle(
                 "Soy alto cuando soy joven y bajo cuando soy viejo. ¿Qué soy?",
                 "vela"
             ));
+        m.insert("laboratorio".to_string(), Passage::new("laboratorio", "un pasillo que conduce al laboratorio", "camara", "laboratorio", true));
         m.insert("biblioteca".to_string(), Passage::new("biblioteca", "un pasillo que conduce a la biblioteca", "laboratorio", "biblioteca", true));
         m.insert("tesoro".to_string(), Passage::new("tesoro", "un pasillo que conduce a la sala del tesoro", "biblioteca", "tesoro", true));
 

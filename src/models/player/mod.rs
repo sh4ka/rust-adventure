@@ -1,5 +1,5 @@
 use crate::Character;
-use crate::models::object::{Location, Item, NPC, Passage, find_location, find_npc, find_item_in_location, find_passage, PASSAGES};
+use crate::models::object::{Location, Item, NPC, Passage, find_location, find_npc, find_item_in_location, find_passage, find_item, PASSAGES};
 use std::collections::{HashMap, HashSet};
 use rand::Rng;
 use std::io::{self, Write};
@@ -12,6 +12,8 @@ pub struct Player {
     pub search_attempts: HashMap<String, u32>,  // Sala -> número de intentos
     pub discovered_items: HashSet<String>,    // Tags de items descubiertos
     pub dropped_items: HashMap<String, String>, // tag -> ubicación donde se soltó
+    pub picked_items: HashSet<String>,        // Tags de items recogidos
+    pub discovered_locations: HashSet<String>, // Tags de localizaciones descubiertas
 }
 
 impl Player {
@@ -23,6 +25,8 @@ impl Player {
             search_attempts: HashMap::new(),
             discovered_items: HashSet::new(),
             dropped_items: HashMap::new(),
+            picked_items: HashSet::new(),
+            discovered_locations: HashSet::new(),
         }
     }
 
@@ -38,27 +42,43 @@ impl Player {
     }
 
     pub fn execute_look(&self) -> String {
-        if let Some(location) = &self.current_location {
-            if let Some(loc) = find_location(location) {
-                let mut response = format!("Estás en {}\n", loc.base.description);
-                
-                // Mostrar descripción larga
-                response.push_str(&format!("\n{}\n", loc.base.long_description));
-                
-                // Contar items y npcs visibles
-                let visible_items: Vec<_> = loc.content.items.iter()
-                    .filter(|item| item.base.visible)
+        if let Some(location_tag) = &self.current_location {
+            if let Some(location) = find_location(location_tag) {
+                let mut response = format!("Estás en {}\n", location.base.description);
+                response.push_str(&format!("\n{}\n", location.base.long_description));
+
+                // Obtener items visibles en la ubicación actual que no han sido recogidos ni soltados en otro lugar
+                let visible_items: Vec<_> = location.content.items.iter()
+                    .filter(|item| {
+                        let is_visible = item.base.visible || self.discovered_items.contains(&item.base.tag);
+                        let not_picked = !self.picked_items.contains(&item.base.tag);
+                        let not_dropped_elsewhere = !self.dropped_items.contains_key(&item.base.tag);
+                        is_visible && not_picked && not_dropped_elsewhere
+                    })
                     .collect();
-                
-                let visible_npcs: Vec<_> = loc.content.npcs.iter()
+
+                // Obtener NPCs visibles en la ubicación actual
+                let visible_npcs: Vec<_> = location.content.npcs.iter()
                     .filter_map(|npc_tag| find_npc(npc_tag))
                     .filter(|npc| npc.base.visible)
                     .collect();
 
+                // Obtener items soltados en la ubicación actual
+                let dropped_items: Vec<_> = self.dropped_items.iter()
+                    .filter(|(_, loc_tag)| loc_tag.as_str() == location_tag.as_str())
+                    .filter_map(|(item_tag, _)| find_item(item_tag))
+                    .collect();
+
                 // Mostrar items y npc en la ubicación solo si hay visibles
-                if !visible_items.is_empty() || !visible_npcs.is_empty() {
+                let has_visible_items = !visible_items.is_empty() || !dropped_items.is_empty();
+                let has_visible_npcs = !visible_npcs.is_empty();
+
+                if has_visible_items || has_visible_npcs {
                     response.push_str("\nHay:\n");
                     for item in visible_items {
+                        response.push_str(&format!("- {}\n", item.base.description));
+                    }
+                    for item in dropped_items {
                         response.push_str(&format!("- {}\n", item.base.description));
                     }
                     for npc in visible_npcs {
@@ -157,10 +177,9 @@ impl Player {
         if let Some(location_tag) = &self.current_location {
             if let Some(location) = find_location(location_tag) {
                 if let Some(item) = find_item_in_location(location, item_tag) {
-                    if item.base.visible || self.discovered_items.contains(&item.base.tag) {
-                        // No podemos modificar location.content directamente
-                        // En su lugar, podríamos mantener un registro de items tomados en el Player
+                    if (item.base.visible || self.discovered_items.contains(&item.base.tag)) && !self.picked_items.contains(&item.base.tag) {
                         self.inventory.push(item.clone());
+                        self.picked_items.insert(item.base.tag.clone());
                         println!("Has cogido {} y lo has añadido a tu inventario.", item.base.description);
                         return true;
                     }
@@ -169,7 +188,7 @@ impl Player {
                 if !location.content.items.is_empty() {
                     println!("\nPuedes coger:");
                     for (i, item) in location.content.items.iter().enumerate() {
-                        if item.base.visible || self.discovered_items.contains(&item.base.tag) {
+                        if (item.base.visible || self.discovered_items.contains(&item.base.tag)) && !self.picked_items.contains(&item.base.tag) {
                             if i == location.content.items.len() - 1 {
                                 println!("- {} [{}].", item.base.description, item.base.tag);
                             } else {
@@ -231,8 +250,7 @@ impl Player {
                 let roll = rng.gen_range(1..=100);
 
                 if roll <= success_chance {
-                    // Éxito en la búsqueda
-                    println!("¡Has encontrado algo!");
+                    let mut found_something = false;
                     
                     // Buscar items ocultos en la sala
                     let hidden_items: Vec<_> = location.content.items.iter()
@@ -240,21 +258,27 @@ impl Player {
                             !item.base.visible && !self.discovered_items.contains(&item.base.tag)
                         })
                         .collect();
+                    
+                    // Buscar localizaciones ocultas en la sala
+                    let hidden_locations: Vec<_> = location.connections.iter()
+                        .filter_map(|tag| find_location(tag))
+                        .filter(|loc| !loc.base.visible && !self.discovered_locations.contains(&loc.base.tag))
+                        .collect();
 
-                    let mut found_something = false;
                     for item in hidden_items {
                         println!("Has descubierto {}", item.base.description);
                         self.discovered_items.insert(item.base.tag.clone());
                         found_something = true;
                     }
-
-                    if !found_something {
-                        println!("No hay nada más que encontrar aquí.");
+                    for location in hidden_locations {
+                        println!("Has descubierto {}", location.base.description);
+                        self.discovered_locations.insert(location.base.tag.clone());
+                        found_something = true;
                     }
 
                     // Reiniciar contador de intentos para esta sala
                     self.search_attempts.remove(location_tag);
-                    return true;
+                    return found_something;
                 } else {
                     println!("No encuentras nada especial...");
                 }
@@ -269,8 +293,9 @@ impl Player {
                 if let Some(index) = self.inventory.iter().position(|item| item.base.tag == item_tag) {
                     // Remover el item del inventario
                     let item = self.inventory.remove(index);
-                    // No podemos modificar location.content directamente
-                    // En su lugar, podríamos mantener un registro de items soltados en el Player
+                    // Añadir el item a la ubicación actual
+                    self.picked_items.remove(&item.base.tag);
+                    // Actualizar la ubicación del item
                     self.dropped_items.insert(item.base.tag.clone(), location_tag.clone());
                     println!("Has soltado {}.", item.base.description);
                     return true;
@@ -289,7 +314,7 @@ impl Player {
             if let Some(location) = find_location(&current_location) {
                 for connection in &location.connections {
                     if let Some(connected_location) = find_location(connection) {
-                        if connected_location.base.visible {
+                        if connected_location.base.visible || self.discovered_locations.contains(connection) {
                             response.push_str(&format!("- {} ({})\n", connected_location.base.description, connection));
                             has_connections = true;
                         }
