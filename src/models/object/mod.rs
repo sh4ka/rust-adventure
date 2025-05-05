@@ -9,6 +9,13 @@ pub struct GameObject {
     pub visible: bool,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Attitude {
+    Hostile,
+    Neutral,
+    Friendly,
+}
+
 #[derive(Debug, Clone)]
 pub struct RoomContent {
     pub items: Vec<Item>,      // Items en la sala
@@ -78,6 +85,7 @@ pub struct NPC {
     pub base: GameObject,
     pub location: String,        // Tag de la ubicación donde está el NPC
     pub dialogue: Vec<String>,   // Diálogos posibles del NPC
+    pub attitude: Attitude,      // Actitud del NPC hacia el jugador
 }
 
 #[derive(Debug, Clone)]
@@ -143,7 +151,13 @@ impl NPC {
             base: GameObject::new(tag, description, visible),
             location: location.to_string(),
             dialogue: Vec::new(),
+            attitude: Attitude::Neutral, // Por defecto, los NPCs son neutrales
         }
+    }
+
+    pub fn with_attitude(mut self, attitude: Attitude) -> Self {
+        self.attitude = attitude;
+        self
     }
 
     pub fn add_dialogue(&mut self, text: &str) {
@@ -291,7 +305,8 @@ lazy_static! {
         let mut m = HashMap::new();
         
         // Crear NPCs
-        let mut guardia = NPC::new("guardia", "una guardia de aspecto amable, armada con una lanza y armadura ligera de cuero", "pueblo", true);
+        let mut guardia = NPC::new("guardia", "una guardia de aspecto amable, armada con una lanza y armadura ligera de cuero", "pueblo", true)
+            .with_attitude(Attitude::Friendly);
         guardia.add_dialogue("Bienvenido a Woodspring. ¿En qué puedo ayudarte?");
         guardia.add_dialogue("Ten cuidado en el bosque, dicen que hay criaturas extrañas.");
         m.insert("guardia".to_string(), guardia);

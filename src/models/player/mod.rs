@@ -1,5 +1,5 @@
 use crate::Character;
-use crate::models::object::{Location, Item, NPC, Passage, find_location, find_npc, find_item_in_location, find_passage, find_item, PASSAGES};
+use crate::models::object::{Location, Item, NPC, Passage, find_location, find_npc, find_item_in_location, find_passage, find_item, PASSAGES, Attitude};
 use std::collections::{HashMap, HashSet};
 use rand::Rng;
 use std::io::{self, Write};
@@ -82,7 +82,12 @@ impl Player {
                         response.push_str(&format!("- {}\n", item.base.description));
                     }
                     for npc in visible_npcs {
-                        response.push_str(&format!("- {}\n", npc.base.description));
+                        let attitude = match npc.attitude {
+                            Attitude::Hostile => " (hostil)",
+                            Attitude::Neutral => " (neutral)",
+                            Attitude::Friendly => " (amistoso)",
+                        };
+                        response.push_str(&format!("- {}{}\n", npc.base.description, attitude));
                     }
                 }
                 
