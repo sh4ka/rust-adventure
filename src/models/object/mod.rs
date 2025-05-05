@@ -238,8 +238,14 @@ lazy_static! {
         campo.content.add_item(Item::new("cuerda", "una cuerda en buen estado", false));
         campo.content.add_item(Item::new("moneda", "una moneda de plata", false));
         pueblo.content.add_npc("guardia");
-        bosque.content.add_npc("goblin");
-        ruinas.content.add_npc("orco");
+        
+        // Añadir grupos de NPCs a sus ubicaciones
+        bosque.content.add_npc("goblin1");
+        bosque.content.add_npc("goblin2");
+        bosque.content.add_npc("goblin3");
+        
+        ruinas.content.add_npc("orco1");
+        ruinas.content.add_npc("orco2");
 
         // Añadir conexiones
         pueblo.add_connection("campo");
@@ -321,16 +327,33 @@ lazy_static! {
         guardia.add_dialogue("Ten cuidado en el bosque, dicen que hay criaturas extrañas.");
         m.insert("guardia".to_string(), guardia);
 
-        // Añadir NPCs hostiles
-        let mut goblin = NPC::new("goblin", "un goblin armado con una daga oxidada", "bosque", true)
+        // Añadir grupos de NPCs hostiles
+        // Grupo de goblins en el bosque
+        let mut goblin1 = NPC::new("goblin1", "un goblin armado con una daga oxidada", "bosque", true)
             .with_attitude(Attitude::Hostile)
             .with_level(1);
-        m.insert("goblin".to_string(), goblin);
+        m.insert("goblin1".to_string(), goblin1);
 
-        let mut orco = NPC::new("orco", "un orco con una gran hacha", "ruinas", true)
+        let mut goblin2 = NPC::new("goblin2", "un goblin con un garrote", "bosque", true)
+            .with_attitude(Attitude::Hostile)
+            .with_level(1);
+        m.insert("goblin2".to_string(), goblin2);
+
+        let mut goblin3 = NPC::new("goblin3", "un goblin con un arco", "bosque", true)
+            .with_attitude(Attitude::Hostile)
+            .with_level(1);
+        m.insert("goblin3".to_string(), goblin3);
+
+        // Grupo de orcos en las ruinas
+        let mut orco1 = NPC::new("orco1", "un orco con una gran hacha", "ruinas", true)
             .with_attitude(Attitude::Hostile)
             .with_level(2);
-        m.insert("orco".to_string(), orco);
+        m.insert("orco1".to_string(), orco1);
+
+        let mut orco2 = NPC::new("orco2", "un orco con una maza", "ruinas", true)
+            .with_attitude(Attitude::Hostile)
+            .with_level(2);
+        m.insert("orco2".to_string(), orco2);
         
         m
     };

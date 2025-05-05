@@ -343,47 +343,78 @@ impl Player {
     pub fn execute_attack(&mut self, target_tag: &str) -> String {
         if let Some(location_tag) = &self.current_location {
             if let Some(location) = find_location(location_tag) {
-                // Buscar el NPC en la ubicación actual
-                if let Some(npc) = location.content.npcs.iter()
+                // Buscar todos los NPCs hostiles en la ubicación actual
+                let hostile_npcs: Vec<_> = location.content.npcs.iter()
                     .filter_map(|npc_tag| find_npc(npc_tag))
-                    .find(|npc| npc.base.tag == target_tag) {
-                    
-                    // Verificar si el NPC es hostil
-                    if npc.attitude != Attitude::Hostile {
-                        return format!("No puedes atacar a {}, no es hostil.", npc.base.description);
+                    .filter(|npc| npc.attitude == Attitude::Hostile && !self.defeated_npcs.contains(&npc.base.tag))
+                    .collect();
+
+                if hostile_npcs.is_empty() {
+                    return "No hay enemigos hostiles aquí.".to_string();
+                }
+
+                let mut response = format!("\nCombate contra {} enemigos:\n", hostile_npcs.len());
+                for npc in &hostile_npcs {
+                    response.push_str(&format!("- {} (nivel {})\n", npc.base.description, npc.level));
+                }
+
+                let mut remaining_enemies = hostile_npcs.len();
+                let mut rng = rand::thread_rng();
+
+                // Cada personaje ataca por turno, pero solo si quedan enemigos
+                for (i, character) in self.characters.iter().enumerate() {
+                    if remaining_enemies == 0 {
+                        break; // Si no quedan enemigos, terminamos los ataques
                     }
 
-                    let mut response = format!("\nCombate contra {} (nivel {})\n", npc.base.description, npc.level);
-                    let mut total_damage = 0;
-                    let mut rng = rand::thread_rng();
-
-                    // Cada personaje ataca por turno
-                    for (i, character) in self.characters.iter().enumerate() {
-                        let roll = rng.gen_range(1..=6);
-                        let total = roll + character.level as i32;
-                        
-                        response.push_str(&format!("\nAventurero {} (nivel {}):\n", i + 1, character.level));
-                        response.push_str(&format!("Tirada: {} + {} = {}\n", roll, character.level, total));
-                        
-                        if total > npc.level as i32 {
-                            total_damage += 1;
-                            response.push_str("¡Golpe certero!\n");
-                        } else {
-                            response.push_str("El ataque falla.\n");
+                    let roll = rng.gen_range(1..=6);
+                    let mut remaining_points = roll + character.level as i32;
+                    
+                    response.push_str(&format!("\nAventurero {} (nivel {}):\n", i + 1, character.level));
+                    response.push_str(&format!("Tirada: {} + {} = {}\n", roll, character.level, remaining_points));
+                    
+                    // Contar cuántos enemigos puede derrotar con este ataque
+                    let mut enemies_defeated = 0;
+                    for npc in &hostile_npcs {
+                        // Para derrotar a un enemigo, el total debe ser >= su nivel
+                        // Cada enemigo derrotado consume tantos puntos como su nivel
+                        if enemies_defeated < remaining_enemies && remaining_points >= npc.level as i32 {
+                            remaining_points -= npc.level as i32;
+                            enemies_defeated += 1;
                         }
                     }
+                    
+                    if enemies_defeated > 0 {
+                        // No podemos derrotar más enemigos de los que quedan
+                        enemies_defeated = enemies_defeated.min(remaining_enemies);
+                        remaining_enemies -= enemies_defeated;
 
-                    if total_damage > 0 {
-                        // Marcar el NPC como derrotado
-                        self.defeated_npcs.insert(target_tag.to_string());
-                        response.push_str(&format!("\n¡El grupo ha derrotado a {}!", npc.base.description));
+                        // Marcar los NPCs derrotados
+                        let mut defeated = 0;
+                        for npc in &hostile_npcs {
+                            if defeated < enemies_defeated && !self.defeated_npcs.contains(&npc.base.tag) {
+                                self.defeated_npcs.insert(npc.base.tag.clone());
+                                defeated += 1;
+                            }
+                        }
+
+                        response.push_str(&format!("¡Golpe certero! Derrota a {} enemigos.\n", enemies_defeated));
+                        
+                        if remaining_enemies == 0 {
+                            response.push_str("¡Todos los enemigos han sido derrotados!\n");
+                        }
                     } else {
-                        response.push_str(&format!("\nEl grupo no pudo derrotar a {}.", npc.base.description));
+                        response.push_str("El ataque falla.\n");
                     }
-
-                    return response;
                 }
-                return format!("No hay ningún {} aquí.", target_tag);
+
+                if remaining_enemies == hostile_npcs.len() {
+                    response.push_str("\nEl grupo no pudo derrotar a ningún enemigo.");
+                } else if remaining_enemies > 0 {
+                    response.push_str(&format!("\nQuedan {} enemigos en pie.", remaining_enemies));
+                }
+
+                return response;
             }
         }
         "No estás en ninguna ubicación.".to_string()
