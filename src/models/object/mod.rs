@@ -333,14 +333,14 @@ lazy_static! {
         // Grupo de goblins en el bosque
         let mut goblins = NPC::new("goblins", "un grupo de goblins", "bosque", true)
             .with_attitude(Attitude::Hostile)
-            .with_level(1)
+            .with_level(3)
             .with_count(4);
         m.insert("goblins".to_string(), goblins);
 
         // Grupo de orcos en las ruinas
         let mut orcos = NPC::new("orcos", "un grupo de orcos", "ruinas", true)
             .with_attitude(Attitude::Hostile)
-            .with_level(6)
+            .with_level(4)
             .with_count(7);
         m.insert("orcos".to_string(), orcos);
         

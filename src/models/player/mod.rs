@@ -530,4 +530,17 @@ impl Player {
         }
         false
     }
+
+    pub fn show_status(&self) {
+        println!("Estado del grupo:");
+        for (i, character) in self.characters.iter().enumerate() {
+            println!("Aventurero {} ({}, nivel {}): {} PV/{} PV", 
+                i + 1,
+                character.class,
+                character.level,
+                character.hit_points,
+                character.max_hit_points
+            );
+        }
+    }
 }

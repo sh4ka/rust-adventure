@@ -118,7 +118,10 @@ pub fn execute_command(command: GameCommand, player: &mut Player) -> String {
             player.execute_inventory();
             "".to_string()
         },
-        Command::Status => player.execute_status(),
+        Command::Status => {
+            player.show_status();
+            String::new()
+        },
         Command::Search => {
             if player.execute_search() {
                 "".to_string()
