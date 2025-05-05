@@ -45,9 +45,9 @@ fn main() {
 
         let mut input = String::new();
         std::io::stdin().read_line(&mut input).unwrap();
-        let class = input.trim();
+        let input = input.trim();
 
-        let character = match class {
+        let character = match input {
             "1" => Character::new(Class::Fighter),
             "2" => Character::new(Class::Cleric),
             "3" => Character::new(Class::Rogue),

@@ -1,5 +1,6 @@
 use lazy_static::lazy_static;
 use std::collections::HashMap;
+use crate::models::character::EquipmentType;
 
 #[derive(Debug, Clone)]
 pub struct GameObject {
@@ -78,6 +79,9 @@ pub struct Location {
 pub struct Item {
     pub base: GameObject,
     pub is_dropped: bool,        // Si el item fue soltado por el jugador
+    pub is_equipment: bool,      // Si el item es equipable
+    pub equipment_type: Option<EquipmentType>, // Tipo de equipamiento si es equipable
+    pub equipment_bonus: i32,    // Bonus que proporciona el equipamiento
 }
 
 #[derive(Debug, Clone)]
@@ -143,6 +147,31 @@ impl Item {
         Self {
             base: GameObject::new(tag, description, visible),
             is_dropped: false,
+            is_equipment: false,
+            equipment_type: None,
+            equipment_bonus: 0,
+        }
+    }
+
+    pub fn new_equipment(tag: &str, description: &str, visible: bool, equipment_type: EquipmentType, bonus: i32) -> Self {
+        Self {
+            base: GameObject::new(tag, description, visible),
+            is_dropped: false,
+            is_equipment: true,
+            equipment_type: Some(equipment_type),
+            equipment_bonus: bonus,
+        }
+    }
+
+    pub fn to_equipment(&self) -> Option<crate::models::character::Equipment> {
+        if self.is_equipment {
+            Some(crate::models::character::Equipment {
+                name: self.base.description.clone(),
+                equipment_type: self.equipment_type.as_ref().unwrap().clone(),
+                bonus: self.equipment_bonus,
+            })
+        } else {
+            None
         }
     }
 }
@@ -244,11 +273,19 @@ lazy_static! {
         cueva.content.add_item(Item::new("antorcha", "una antorcha", true));
         campo.content.add_item(Item::new("cuerda", "una cuerda en buen estado", false));
         campo.content.add_item(Item::new("moneda", "una moneda de plata", false));
+
         pueblo.content.add_npc("guardia");
+        pueblo.content.add_item(Item::new_equipment("espada", "una espada de hierro", true, EquipmentType::Weapon, 0));
+        pueblo.content.add_item(Item::new_equipment("daga", "una daga ligera", true, EquipmentType::Weapon, -1));
+        pueblo.content.add_item(Item::new_equipment("armadura", "una armadura de cuero", true, EquipmentType::Armor, 1));
         
         // Añadir grupos de NPCs a sus ubicaciones
         bosque.content.add_npc("goblins");
+        bosque.content.add_item(Item::new_equipment("hacha", "un hacha de batalla", true, EquipmentType::Weapon, 1));
+        bosque.content.add_item(Item::new_equipment("escudo", "un escudo de madera", true, EquipmentType::Shield, 1));
+        
         ruinas.content.add_npc("orcos");
+        ruinas.content.add_item(Item::new_equipment("armadura_pesada", "una armadura de placas", true, EquipmentType::Armor, 2));
 
         // Añadir conexiones
         pueblo.add_connection("campo");
@@ -309,13 +346,14 @@ lazy_static! {
 
     pub static ref ITEMS: HashMap<String, Item> = {
         let mut m = HashMap::new();
-        
-        // Crear items
-        m.insert("venda".to_string(), Item::new("venda", "una venda limpia", false));
-        m.insert("cuerda".to_string(), Item::new("cuerda", "una cuerda en buen estado", false));
-        m.insert("moneda".to_string(), Item::new("moneda", "una moneda de plata", false));
-        m.insert("antorcha".to_string(), Item::new("antorcha", "una antorcha", true));
-
+        m.insert("espada".to_string(), Item::new_equipment("espada", "una espada de acero", true, EquipmentType::Weapon, 0));
+        m.insert("daga".to_string(), Item::new_equipment("daga", "una daga ligera", true, EquipmentType::Weapon, -1));
+        m.insert("hacha".to_string(), Item::new_equipment("hacha", "un hacha de batalla", true, EquipmentType::Weapon, 1));
+        m.insert("escudo".to_string(), Item::new_equipment("escudo", "un escudo de madera", true, EquipmentType::Shield, 1));
+        m.insert("armadura".to_string(), Item::new_equipment("armadura", "una armadura de cuero", true, EquipmentType::Armor, 1));
+        m.insert("armadura_pesada".to_string(), Item::new_equipment("armadura_pesada", "una armadura de placas", true, EquipmentType::Armor, 2));
+        m.insert("antorcha".to_string(), Item::new("antorcha", "una antorcha encendida", true));
+        m.insert("llave".to_string(), Item::new("llave", "una llave de hierro", true));
         m
     };
 

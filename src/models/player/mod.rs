@@ -1,5 +1,6 @@
 use crate::Character;
 use crate::models::object::{Location, Item, NPC, Passage, find_location, find_npc, find_item_in_location, find_passage, find_item, PASSAGES, Attitude};
+use crate::models::character::EquipmentType;
 use std::collections::{HashMap, HashSet};
 use rand::Rng;
 use std::io::{self, Write};
@@ -224,10 +225,51 @@ impl Player {
         } else {
             println!("Tu inventario contiene:");
             for (i, item) in self.inventory.iter().enumerate() {
-                if i == self.inventory.len() - 1 {
-                    println!("- {}.", item.base.description);
+                // Verificar si el objeto está equipado y por quién
+                let equipped_by = if item.is_equipment {
+                    let mut equipped = None;
+                    for (index, character) in self.characters.iter().enumerate() {
+                        if let Some(equipment) = item.to_equipment() {
+                            match equipment.equipment_type {
+                                EquipmentType::Weapon => {
+                                    if let Some(weapon) = &character.weapon {
+                                        if weapon.name == item.base.description {
+                                            equipped = Some((index + 1, &character.class));
+                                        }
+                                    }
+                                },
+                                EquipmentType::Shield => {
+                                    if let Some(shield) = &character.shield {
+                                        if shield.name == item.base.description {
+                                            equipped = Some((index + 1, &character.class));
+                                        }
+                                    }
+                                },
+                                EquipmentType::Armor => {
+                                    if let Some(armor) = &character.armor {
+                                        if armor.name == item.base.description {
+                                            equipped = Some((index + 1, &character.class));
+                                        }
+                                    }
+                                },
+                            }
+                        }
+                    }
+                    equipped
                 } else {
-                    println!("- {},", item.base.description);
+                    None
+                };
+
+                if i == self.inventory.len() - 1 {
+                    match equipped_by {
+                        Some((num, class)) => println!("- {} (equipado por Aventurero {} - {}).", item.base.description, num, class),
+                        None => println!("- {}.", item.base.description),
+                    }
+                } else {
+                    match equipped_by {
+                        Some((num, class)) => println!("- {} (equipado por Aventurero {} - {}),", item.base.description, num, class),
+                        None => println!("- {},", item.base.description),
+                    }
                 }
             }
         }
@@ -398,13 +440,23 @@ impl Player {
                             break;
                         }
 
+                        // Verificar si el personaje tiene un arma equipada
+                        if character.weapon.is_none() {
+                            response.push_str(&format!(
+                                "Aventurero {} no puede atacar porque no tiene un arma equipada.\n",
+                                i + 1
+                            ));
+                            continue;
+                        }
+
                         let attack_roll = rand::thread_rng().gen_range(1..=6);
-                        let attack_total = attack_roll + character.level as i32;
+                        let equipment_bonus = character.get_equipment_bonus();
+                        let attack_total = attack_roll + character.level as i32 + equipment_bonus;
                         let npc = &hostile_npcs[0]; // Todos los enemigos son del mismo tipo
                         
                         response.push_str(&format!(
-                            "Aventurero {} (nivel {}) tira {} + {} = {}\n",
-                            i + 1, character.level, attack_roll, character.level, attack_total
+                            "Aventurero {} (nivel {}) tira {} + {} + {} = {}\n",
+                            i + 1, character.level, attack_roll, character.level, equipment_bonus, attack_total
                         ));
 
                         if attack_total >= npc.level as i32 {
@@ -450,9 +502,12 @@ impl Player {
                             for _ in 0..enemies_for_this_char {
                                 let npc = &hostile_npcs[0]; // Todos los enemigos son del mismo tipo
                                 let defense_roll = rand::thread_rng().gen_range(1..=6);
+                                let defense_bonus = character.get_defense_bonus();
+                                let defense_total = defense_roll + defense_bonus;
+                                
                                 response.push_str(&format!(
-                                    "Aventurero {} se defiende con {} contra el {}.\n",
-                                    i + 1, defense_roll, npc.base.tag
+                                    "Aventurero {} se defiende con {} + {} = {} contra el {}.\n",
+                                    i + 1, defense_roll, defense_bonus, defense_total, npc.base.tag
                                 ));
 
                                 if defense_roll == 1 {
@@ -462,7 +517,7 @@ impl Player {
                                         "¡Fallo crítico! Aventurero {} recibe 1 punto de daño.\n",
                                         i + 1
                                     ));
-                                } else if defense_roll > npc.level as i32 || defense_roll == 6 {
+                                } else if defense_total > npc.level as i32 || defense_roll == 6 {
                                     // Defensa exitosa
                                     response.push_str(&format!(
                                         "Aventurero {} esquiva el ataque del {}.\n",
@@ -485,12 +540,17 @@ impl Player {
                         // Mostrar el estado actual del grupo
                         response.push_str("\nEstado del grupo después del contraataque:\n");
                         for (i, character) in self.characters.iter().enumerate() {
+                            let equipment_bonus = character.get_equipment_bonus();
+                            let defense_bonus = character.get_defense_bonus();
                             response.push_str(&format!(
-                                "Aventurero {} (nivel {}): {} PV/{} PV\n",
+                                "Aventurero {} ({}, nivel {}): {} PV/{} PV (Ataque: {}, Defensa: {})\n",
                                 i + 1,
+                                character.class,
                                 character.level,
                                 character.hit_points,
-                                character.max_hit_points
+                                character.max_hit_points,
+                                equipment_bonus,
+                                defense_bonus
                             ));
                         }
 
@@ -542,5 +602,123 @@ impl Player {
                 character.max_hit_points
             );
         }
+    }
+
+    pub fn execute_equip(&mut self, item_tag: &str) -> bool {
+        if item_tag.is_empty() {
+            let equipable_items: Vec<&Item> = self.inventory.iter()
+                .filter(|item| item.is_equipment)
+                .collect();
+            
+            if equipable_items.is_empty() {
+                println!("No tienes objetos equipables en tu inventario.");
+            } else {
+                println!("Puedes equipar:");
+                for (i, item) in equipable_items.iter().enumerate() {
+                    if i == equipable_items.len() - 1 {
+                        println!("- {} [{}].", item.base.description, item.base.tag);
+                    } else {
+                        println!("- {} [{}],", item.base.description, item.base.tag);
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Dividir el input en personaje y objeto
+        let parts: Vec<&str> = item_tag.split_whitespace().collect();
+        let (character_index, item_tag) = if parts.len() > 1 {
+            // Intentar parsear el número del personaje
+            if let Ok(index) = parts[0].parse::<usize>() {
+                if index > 0 && index <= self.characters.len() {
+                    (Some(index - 1), parts[1..].join(" "))
+                } else {
+                    println!("Número de personaje inválido. Usa un número entre 1 y {}.", self.characters.len());
+                    return false;
+                }
+            } else {
+                (None, item_tag.to_string())
+            }
+        } else {
+            (None, item_tag.to_string())
+        };
+
+        // Buscar el objeto en el inventario
+        if let Some(item) = self.inventory.iter().find(|item| item.base.tag == item_tag) {
+            if item.is_equipment {
+                if let Some(equipment) = item.to_equipment() {
+                    // Si se especificó un personaje, usarlo; si no, usar el primero
+                    let character = if let Some(index) = character_index {
+                        &mut self.characters[index]
+                    } else {
+                        self.characters.first_mut().unwrap()
+                    };
+
+                    if let Some(old_equipment) = character.equip(equipment) {
+                        println!("{} ha equipado {} y ha guardado {}.", 
+                            character.class,
+                            item.base.description, 
+                            old_equipment.name
+                        );
+                    } else {
+                        println!("{} ha equipado {}.", 
+                            character.class,
+                            item.base.description
+                        );
+                    }
+                    return true;
+                }
+            }
+            println!("No puedes equipar {} porque no es un objeto equipable.", item.base.description);
+        } else {
+            println!("No tienes ese objeto en tu inventario.");
+        }
+        false
+    }
+
+    pub fn execute_unequip(&mut self, equipment_type: &str) -> bool {
+        // Dividir el input en personaje y tipo de equipo
+        let parts: Vec<&str> = equipment_type.split_whitespace().collect();
+        let (character_index, equipment_type) = if parts.len() > 1 {
+            // Intentar parsear el número del personaje
+            if let Ok(index) = parts[0].parse::<usize>() {
+                if index > 0 && index <= self.characters.len() {
+                    (Some(index - 1), parts[1].to_string())
+                } else {
+                    println!("Número de personaje inválido. Usa un número entre 1 y {}.", self.characters.len());
+                    return false;
+                }
+            } else {
+                (None, equipment_type.to_string())
+            }
+        } else {
+            (None, equipment_type.to_string())
+        };
+
+        let equipment_type = match equipment_type.to_lowercase().as_str() {
+            "arma" | "weapon" => Some(EquipmentType::Weapon),
+            "escudo" | "shield" => Some(EquipmentType::Shield),
+            "armadura" | "armor" => Some(EquipmentType::Armor),
+            _ => None,
+        };
+
+        if let Some(equipment_type) = equipment_type {
+            // Si se especificó un personaje, usarlo; si no, usar el primero
+            let character = if let Some(index) = character_index {
+                &mut self.characters[index]
+            } else {
+                self.characters.first_mut().unwrap()
+            };
+
+            if let Some(equipment) = character.unequip(equipment_type) {
+                println!("{} ha desequipado {}.", character.class, equipment.name);
+                return true;
+            } else {
+                println!("{} no tiene nada equipado en ese slot.", character.class);
+            }
+        } else {
+            println!("Tipo de equipamiento no válido. Usa 'arma', 'escudo' o 'armadura'.");
+        }
+        false
     }
 }

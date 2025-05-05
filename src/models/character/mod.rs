@@ -12,6 +12,20 @@ pub enum Class {
     Halfling
 }
 
+#[derive(Debug, Clone)]
+pub enum EquipmentType {
+    Weapon,
+    Shield,
+    Armor
+}
+
+#[derive(Debug)]
+pub struct Equipment {
+    pub name: String,
+    pub equipment_type: EquipmentType,
+    pub bonus: i32,  // Bonus que proporciona el equipamiento
+}
+
 impl Display for Class {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self { 
@@ -33,6 +47,9 @@ pub struct Character {
     pub(crate) hit_points: u32,
     pub(crate) max_hit_points: u32,
     pub level: u32,
+    pub weapon: Option<Equipment>,
+    pub shield: Option<Equipment>,
+    pub armor: Option<Equipment>,
 }
 
 impl Character {
@@ -42,7 +59,10 @@ impl Character {
             class,
             hit_points: max_hit_points,
             max_hit_points,
-            level: 1
+            level: 1,
+            weapon: None,
+            shield: None,
+            armor: None,
         }
     }
 
@@ -57,6 +77,53 @@ impl Character {
             Class::Dwarf => level + 5,      // Enano: puntos de vida altos
             Class::Halfling => level + 3    // Mediano: menos puntos de vida
         }
+    }
+
+    pub fn equip(&mut self, equipment: Equipment) -> Option<Equipment> {
+        match equipment.equipment_type {
+            EquipmentType::Weapon => {
+                let old_weapon = self.weapon.take();
+                self.weapon = Some(equipment);
+                old_weapon
+            },
+            EquipmentType::Shield => {
+                let old_shield = self.shield.take();
+                self.shield = Some(equipment);
+                old_shield
+            },
+            EquipmentType::Armor => {
+                let old_armor = self.armor.take();
+                self.armor = Some(equipment);
+                old_armor
+            },
+        }
+    }
+
+    pub fn unequip(&mut self, equipment_type: EquipmentType) -> Option<Equipment> {
+        match equipment_type {
+            EquipmentType::Weapon => self.weapon.take(),
+            EquipmentType::Shield => self.shield.take(),
+            EquipmentType::Armor => self.armor.take(),
+        }
+    }
+
+    pub fn get_equipment_bonus(&self) -> i32 {
+        let mut bonus = 0;
+        if let Some(weapon) = &self.weapon {
+            bonus += weapon.bonus;
+        }
+        bonus
+    }
+
+    pub fn get_defense_bonus(&self) -> i32 {
+        let mut bonus = 0;
+        if let Some(shield) = &self.shield {
+            bonus += shield.bonus;
+        }
+        if let Some(armor) = &self.armor {
+            bonus += armor.bonus;
+        }
+        bonus
     }
 
     pub fn take_damage(&mut self, damage: u32) -> u32 {

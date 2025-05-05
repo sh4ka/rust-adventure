@@ -15,6 +15,8 @@ pub enum Command {
     Attack,
     Status,
     Combat,
+    Equip,
+    Unequip,
     Unknown,
 }
 
@@ -73,6 +75,20 @@ pub fn parse_command(input: &str) -> GameCommand {
         "ayuda" => GameCommand::new(Command::Help),
         "salir" => GameCommand::new(Command::Exit),
         "estado" => GameCommand::new(Command::Status),
+        "equipar" => {
+            if words.len() > 1 {
+                GameCommand::new(Command::Equip).with_target(words[1..].join(" "))
+            } else {
+                GameCommand::new(Command::Equip)
+            }
+        },
+        "desequipar" => {
+            if words.len() > 1 {
+                GameCommand::new(Command::Unequip).with_target(words[1..].join(" "))
+            } else {
+                GameCommand::new(Command::Unequip)
+            }
+        },
         "atacar" => {
             if words.len() > 1 {
                 GameCommand::new(Command::Attack).with_target(words[1].to_string())
@@ -139,6 +155,8 @@ pub fn execute_command(command: GameCommand, player: &mut Player) -> String {
             help.push_str("  estado - Ver el estado del grupo\n");
             help.push_str("  buscar - Buscar objetos ocultos\n");
             help.push_str("  atacar <enemigo> - Atacar a un enemigo\n");
+            help.push_str("  equipar [personaje] <objeto> - Equipar un objeto (opcionalmente a un personaje específico)\n");
+            help.push_str("  desequipar <objeto> - Desequipar un objeto\n");
             help.push_str("  ayuda - Mostrar esta ayuda\n");
             help.push_str("  salir - Salir del juego\n");
             help.push_str("\nDurante el combate:\n");
@@ -154,6 +172,29 @@ pub fn execute_command(command: GameCommand, player: &mut Player) -> String {
                 player.execute_attack(&target)
             } else {
                 "¿A quién quieres atacar?".to_string()
+            }
+        },
+        Command::Equip => {
+            if let Some(target) = command.target {
+                if player.execute_equip(&target) {
+                    "".to_string()
+                } else {
+                    "No puedes equipar eso.".to_string()
+                }
+            } else {
+                player.execute_equip("");
+                "".to_string()
+            }
+        },
+        Command::Unequip => {
+            if let Some(target) = command.target {
+                if player.execute_unequip(&target) {
+                    "".to_string()
+                } else {
+                    "No puedes desequipar eso.".to_string()
+                }
+            } else {
+                "¿Qué quieres desequipar?".to_string()
             }
         },
         Command::Combat => {
