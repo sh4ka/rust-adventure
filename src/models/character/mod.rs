@@ -14,22 +14,34 @@ impl Display for Class {
 #[derive(Debug)]
 pub struct Character {
     pub(crate) class: Class,
-    hit_points: u32,
+    pub(crate) hit_points: u32,
+    pub(crate) max_hit_points: u32,
     pub level: u32,
 }
 
 fn get_hit_points(class: &Class, level: u32) -> u32 {
-    match class { Class::Fighter => {level + 6} }
+    match class { Class::Fighter => {level * 2 + 6} }
 }
 
 impl Character {
     pub fn new(class: Class) -> Character {
-        let hit_points: u32 = get_hit_points(&class, 1);
+        let max_hit_points = get_hit_points(&class, 1);
         Character {
             class,
-            hit_points,
+            hit_points: max_hit_points,
+            max_hit_points,
             level: 1
         }
+    }
+
+    pub fn take_damage(&mut self, damage: u32) -> u32 {
+        let actual_damage = damage.min(self.hit_points);
+        self.hit_points = self.hit_points.saturating_sub(damage);
+        actual_damage
+    }
+
+    pub fn is_alive(&self) -> bool {
+        self.hit_points > 0
     }
 }
 

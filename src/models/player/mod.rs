@@ -361,7 +361,8 @@ impl Player {
                 let mut remaining_enemies = hostile_npcs.len();
                 let mut rng = rand::thread_rng();
 
-                // Cada personaje ataca por turno, pero solo si quedan enemigos
+                // Ataque de los jugadores
+                response.push_str("\n--- ATAQUE DE LOS JUGADORES ---\n");
                 for (i, character) in self.characters.iter().enumerate() {
                     if remaining_enemies == 0 {
                         break; // Si no quedan enemigos, terminamos los ataques
@@ -405,6 +406,51 @@ impl Player {
                         }
                     } else {
                         response.push_str("El ataque falla.\n");
+                    }
+                }
+
+                // Si quedan enemigos, atacan a los jugadores
+                if remaining_enemies > 0 {
+                    response.push_str("\n--- ATAQUE DE LOS ENEMIGOS ---\n");
+                    let remaining_hostile_npcs: Vec<_> = hostile_npcs.iter()
+                        .filter(|npc| !self.defeated_npcs.contains(&npc.base.tag))
+                        .collect();
+
+                    // Cada enemigo superviviente ataca a un personaje en orden
+                    for (i, npc) in remaining_hostile_npcs.iter().enumerate() {
+                        if i >= self.characters.len() {
+                            break; // Si no hay más personajes, terminamos los ataques
+                        }
+
+                        let character = &self.characters[i];
+                        let defense_roll = rng.gen_range(1..=6);
+                        
+                        response.push_str(&format!("\n{} ataca al Aventurero {}:\n", npc.base.description, i + 1));
+                        response.push_str(&format!("Tirada de defensa: {}\n", defense_roll));
+
+                        // Reglas especiales: 1 siempre falla, 6 siempre acierta
+                        if defense_roll == 1 {
+                            response.push_str("¡Fallo crítico! El ataque impacta.\n");
+                            let damage = 1; // Daño fijo de 1
+                            let actual_damage = self.characters[i].take_damage(damage);
+                            response.push_str(&format!("El Aventurero {} pierde {} puntos de vida. (HP: {}/{})\n", 
+                                i + 1, actual_damage, self.characters[i].hit_points, self.characters[i].max_hit_points));
+                        } else if defense_roll == 6 {
+                            response.push_str("¡Defensa perfecta! El ataque es esquivado.\n");
+                        } else if defense_roll > npc.level as i32 {
+                            response.push_str("¡Defensa exitosa! El ataque es esquivado.\n");
+                        } else {
+                            response.push_str("¡El ataque impacta!\n");
+                            let damage = 1; // Daño fijo de 1
+                            let actual_damage = self.characters[i].take_damage(damage);
+                            response.push_str(&format!("El Aventurero {} pierde {} puntos de vida. (HP: {}/{})\n", 
+                                i + 1, actual_damage, self.characters[i].hit_points, self.characters[i].max_hit_points));
+                        }
+
+                        // Verificar si el personaje ha sido derrotado
+                        if !self.characters[i].is_alive() {
+                            response.push_str(&format!("¡El Aventurero {} ha sido derrotado!\n", i + 1));
+                        }
                     }
                 }
 

@@ -246,6 +246,7 @@ lazy_static! {
         
         ruinas.content.add_npc("orco1");
         ruinas.content.add_npc("orco2");
+        ruinas.content.add_npc("orco3");
 
         // Añadir conexiones
         pueblo.add_connection("campo");
@@ -344,16 +345,24 @@ lazy_static! {
             .with_level(1);
         m.insert("goblin3".to_string(), goblin3);
 
-        // Grupo de orcos en las ruinas
-        let mut orco1 = NPC::new("orco1", "un orco con una gran hacha", "ruinas", true)
+        // Orcos
+        let mut orco1 = NPC::new("orco1", "un orco con una gran hacha a dos manos", "ruinas", true)
             .with_attitude(Attitude::Hostile)
-            .with_level(2);
+            .with_level(6);
+        orco1.base.visible = true;
         m.insert("orco1".to_string(), orco1);
 
         let mut orco2 = NPC::new("orco2", "un orco con una maza", "ruinas", true)
             .with_attitude(Attitude::Hostile)
-            .with_level(2);
+            .with_level(5);
+        orco2.base.visible = true;
         m.insert("orco2".to_string(), orco2);
+
+        let mut orco3 = NPC::new("orco3", "un orco con una espada oxidada", "ruinas", true)
+            .with_attitude(Attitude::Hostile)
+            .with_level(5);
+        orco3.base.visible = true;
+        m.insert("orco3".to_string(), orco3);
         
         m
     };
