@@ -7,7 +7,7 @@ mod parsexec;
 
 use std::io::{self, Write};
 use crate::models::player::Player;
-use crate::models::character::{Character, Class, EquipmentType};
+use crate::models::character::{Character, Class, EquipmentType, WeaponType, ArmorType};
 use crate::models::object::Item;
 use crate::parsexec::{parse_command, execute_command};
 
@@ -21,7 +21,7 @@ impl Game {
     }
 
     fn show_status(&self) {
-        self.player.show_status();
+        println!("{}", self.player.execute_status());
     }
 }
 
@@ -51,63 +51,61 @@ fn main() {
 
         let (character, items) = match input {
             "1" => {
-                let espada = Item::new_equipment("espada_inicial", "una espada de hierro", true, EquipmentType::Weapon, 0);
-                let armadura = Item::new_equipment("armadura_inicial", "una armadura de cuero", true, EquipmentType::Armor, 1);
+                let espada = Item::new_equipment("espada_inicial", "una espada de hierro", true, EquipmentType::Weapon(WeaponType::Medium));
+                let armadura = Item::new_equipment("armadura_inicial", "una armadura de cuero", true, EquipmentType::Armor(ArmorType::Light));
                 let mut character = Character::new(Class::Fighter);
                 character.equip(espada.to_equipment().unwrap());
                 character.equip(armadura.to_equipment().unwrap());
                 (character, vec![espada, armadura])
             },
             "2" => {
-                let hacha = Item::new_equipment("hacha_inicial", "un hacha de batalla", true, EquipmentType::Weapon, 1);
-                let escudo = Item::new_equipment("escudo_inicial", "un escudo de madera", true, EquipmentType::Shield, 1);
+                let hacha = Item::new_equipment("hacha_inicial", "un hacha de batalla", true, EquipmentType::Weapon(WeaponType::Heavy));
+                let escudo = Item::new_equipment("escudo_inicial", "un escudo de madera", true, EquipmentType::Shield);
                 let mut character = Character::new(Class::Cleric);
                 character.equip(hacha.to_equipment().unwrap());
                 character.equip(escudo.to_equipment().unwrap());
                 (character, vec![hacha, escudo])
             },
             "3" => {
-                let daga = Item::new_equipment("daga_inicial", "una daga ligera", true, EquipmentType::Weapon, -1);
                 let mut character = Character::new(Class::Rogue);
-                character.equip(daga.to_equipment().unwrap());
-                (character, vec![daga])
+                (character, vec![])
             },
             "4" => {
-                let daga = Item::new_equipment("daga_inicial", "una daga ligera", true, EquipmentType::Weapon, -1);
+                let daga = Item::new_equipment("daga_inicial", "una daga ligera", true, EquipmentType::Weapon(WeaponType::Light));
                 let mut character = Character::new(Class::Wizard);
                 character.equip(daga.to_equipment().unwrap());
                 (character, vec![daga])
             },
             "5" => {
-                let hacha = Item::new_equipment("hacha_inicial", "un hacha de batalla", true, EquipmentType::Weapon, 1);
+                let hacha = Item::new_equipment("hacha_inicial", "un hacha de batalla", true, EquipmentType::Weapon(WeaponType::Heavy));
                 let mut character = Character::new(Class::Barbarian);
                 character.equip(hacha.to_equipment().unwrap());
                 (character, vec![hacha])
             },
             "6" => {
-                let espada = Item::new_equipment("espada_inicial", "una espada de hierro", true, EquipmentType::Weapon, 0);
+                let espada = Item::new_equipment("espada_inicial", "una espada de hierro", true, EquipmentType::Weapon(WeaponType::Medium));
                 let mut character = Character::new(Class::Elf);
                 character.equip(espada.to_equipment().unwrap());
                 (character, vec![espada])
             },
             "7" => {
-                let hacha = Item::new_equipment("hacha_inicial", "un hacha de batalla", true, EquipmentType::Weapon, 1);
-                let armadura = Item::new_equipment("armadura_inicial", "una armadura de cuero", true, EquipmentType::Armor, 1);
+                let hacha = Item::new_equipment("hacha_inicial", "un hacha de batalla", true, EquipmentType::Weapon(WeaponType::Heavy));
+                let armadura = Item::new_equipment("armadura_inicial", "una armadura de cuero", true, EquipmentType::Armor(ArmorType::Light));
                 let mut character = Character::new(Class::Dwarf);
                 character.equip(hacha.to_equipment().unwrap());
                 character.equip(armadura.to_equipment().unwrap());
                 (character, vec![hacha, armadura])
             },
             "8" => {
-                let daga = Item::new_equipment("daga_inicial", "una daga ligera", true, EquipmentType::Weapon, -1);
+                let daga = Item::new_equipment("daga_inicial", "una daga ligera", true, EquipmentType::Weapon(WeaponType::Light));
                 let mut character = Character::new(Class::Halfling);
                 character.equip(daga.to_equipment().unwrap());
                 (character, vec![daga])
             },
             _ => {
                 println!("Opción no válida, se creará un guerrero por defecto.");
-                let espada = Item::new_equipment("espada_inicial", "una espada de hierro", true, EquipmentType::Weapon, 0);
-                let armadura = Item::new_equipment("armadura_inicial", "una armadura de cuero", true, EquipmentType::Armor, 1);
+                let espada = Item::new_equipment("espada_inicial", "una espada de hierro", true, EquipmentType::Weapon(WeaponType::Medium));
+                let armadura = Item::new_equipment("armadura_inicial", "una armadura de cuero", true, EquipmentType::Armor(ArmorType::Light));
                 let mut character = Character::new(Class::Fighter);
                 character.equip(espada.to_equipment().unwrap());
                 character.equip(armadura.to_equipment().unwrap());
@@ -136,7 +134,7 @@ fn main() {
         }
 
         let command = parse_command(&input);
-        let response = execute_command(command, &mut game.player);
+        let response = execute_command(&mut game.player, command);
         if !response.is_empty() {
             println!("{}", response);
         }

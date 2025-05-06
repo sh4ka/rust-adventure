@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
+use crate::models::object::Item;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Class {
     Fighter,
     Cleric,
@@ -9,26 +10,38 @@ pub enum Class {
     Barbarian,
     Elf,
     Dwarf,
-    Halfling
+    Halfling,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum WeaponType {
+    Light,
+    Medium,
+    Heavy,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArmorType {
+    Light,
+    Heavy,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum EquipmentType {
+    Weapon(WeaponType),
+    Shield,
+    Armor(ArmorType),
 }
 
 #[derive(Debug, Clone)]
-pub enum EquipmentType {
-    Weapon,
-    Shield,
-    Armor
-}
-
-#[derive(Debug)]
 pub struct Equipment {
     pub name: String,
     pub equipment_type: EquipmentType,
-    pub bonus: i32,  // Bonus que proporciona el equipamiento
 }
 
 impl Display for Class {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self { 
+        match self {
             Class::Fighter => write!(f, "Guerrero"),
             Class::Cleric => write!(f, "Clérigo"),
             Class::Rogue => write!(f, "Pícaro"),
@@ -36,14 +49,14 @@ impl Display for Class {
             Class::Barbarian => write!(f, "Bárbaro"),
             Class::Elf => write!(f, "Elfo"),
             Class::Dwarf => write!(f, "Enano"),
-            Class::Halfling => write!(f, "Mediano")
+            Class::Halfling => write!(f, "Mediano"),
         }
     }
 }
 
 #[derive(Debug)]
 pub struct Character {
-    pub(crate) class: Class,
+    pub class: Class,
     pub(crate) hit_points: u32,
     pub(crate) max_hit_points: u32,
     pub level: u32,
@@ -55,7 +68,7 @@ pub struct Character {
 impl Character {
     pub fn new(class: Class) -> Character {
         let max_hit_points = Self::calculate_hit_points(&class, 1);
-        let mut character = Character {
+        Character {
             class: class.clone(),
             hit_points: max_hit_points,
             max_hit_points,
@@ -63,84 +76,7 @@ impl Character {
             weapon: None,
             shield: None,
             armor: None,
-        };
-
-        // Asignar equipo inicial según la clase
-        match class {
-            Class::Fighter => {
-                character.weapon = Some(Equipment {
-                    name: "una espada de hierro".to_string(),
-                    equipment_type: EquipmentType::Weapon,
-                    bonus: 0,
-                });
-                character.armor = Some(Equipment {
-                    name: "una armadura de cuero".to_string(),
-                    equipment_type: EquipmentType::Armor,
-                    bonus: 1,
-                });
-            },
-            Class::Cleric => {
-                character.weapon = Some(Equipment {
-                    name: "un hacha de batalla".to_string(),
-                    equipment_type: EquipmentType::Weapon,
-                    bonus: 1,
-                });
-                character.shield = Some(Equipment {
-                    name: "un escudo de madera".to_string(),
-                    equipment_type: EquipmentType::Shield,
-                    bonus: 1,
-                });
-            },
-            Class::Rogue => {
-                character.weapon = Some(Equipment {
-                    name: "una daga ligera".to_string(),
-                    equipment_type: EquipmentType::Weapon,
-                    bonus: -1,
-                });
-            },
-            Class::Wizard => {
-                character.weapon = Some(Equipment {
-                    name: "una daga ligera".to_string(),
-                    equipment_type: EquipmentType::Weapon,
-                    bonus: -1,
-                });
-            },
-            Class::Barbarian => {
-                character.weapon = Some(Equipment {
-                    name: "un hacha de batalla".to_string(),
-                    equipment_type: EquipmentType::Weapon,
-                    bonus: 1,
-                });
-            },
-            Class::Elf => {
-                character.weapon = Some(Equipment {
-                    name: "una espada de hierro".to_string(),
-                    equipment_type: EquipmentType::Weapon,
-                    bonus: 0,
-                });
-            },
-            Class::Dwarf => {
-                character.weapon = Some(Equipment {
-                    name: "un hacha de batalla".to_string(),
-                    equipment_type: EquipmentType::Weapon,
-                    bonus: 1,
-                });
-                character.armor = Some(Equipment {
-                    name: "una armadura de cuero".to_string(),
-                    equipment_type: EquipmentType::Armor,
-                    bonus: 1,
-                });
-            },
-            Class::Halfling => {
-                character.weapon = Some(Equipment {
-                    name: "una daga ligera".to_string(),
-                    equipment_type: EquipmentType::Weapon,
-                    bonus: -1,
-                });
-            },
         }
-
-        character
     }
 
     fn calculate_hit_points(class: &Class, level: u32) -> u32 {
@@ -157,50 +93,40 @@ impl Character {
     }
 
     pub fn equip(&mut self, equipment: Equipment) -> Option<Equipment> {
-        match equipment.equipment_type {
-            EquipmentType::Weapon => {
-                let old_weapon = self.weapon.take();
-                self.weapon = Some(equipment);
-                old_weapon
-            },
-            EquipmentType::Shield => {
-                let old_shield = self.shield.take();
-                self.shield = Some(equipment);
-                old_shield
-            },
-            EquipmentType::Armor => {
-                let old_armor = self.armor.take();
-                self.armor = Some(equipment);
-                old_armor
-            },
+        match &equipment.equipment_type {
+            EquipmentType::Weapon(_) => self.weapon.replace(equipment),
+            EquipmentType::Shield => self.shield.replace(equipment),
+            EquipmentType::Armor(_) => self.armor.replace(equipment),
         }
     }
 
     pub fn unequip(&mut self, equipment_type: EquipmentType) -> Option<Equipment> {
         match equipment_type {
-            EquipmentType::Weapon => self.weapon.take(),
+            EquipmentType::Weapon(_) => self.weapon.take(),
             EquipmentType::Shield => self.shield.take(),
-            EquipmentType::Armor => self.armor.take(),
+            EquipmentType::Armor(_) => self.armor.take(),
         }
     }
 
-    pub fn get_equipment_bonus(&self) -> i32 {
-        let mut bonus = 0;
-        if let Some(weapon) = &self.weapon {
-            bonus += weapon.bonus;
-        }
-        bonus
+    pub fn get_attack_bonus(&self) -> i32 {
+        let weapon_bonus = self.weapon.as_ref().map_or(0, |w| w.get_bonus());
+        let shield_bonus = self.shield.as_ref().map_or(0, |s| s.get_bonus());
+        weapon_bonus + shield_bonus
     }
 
     pub fn get_defense_bonus(&self) -> i32 {
-        let mut bonus = 0;
-        if let Some(shield) = &self.shield {
-            bonus += shield.bonus;
+        let armor_bonus = self.armor.as_ref().map_or(0, |a| a.get_bonus());
+        let shield_bonus = self.shield.as_ref().map_or(0, |s| s.get_bonus());
+        armor_bonus + shield_bonus
+    }
+
+    pub fn get_equipment_bonus(&self) -> Option<i32> {
+        if self.weapon.is_none() {
+            return None;
         }
-        if let Some(armor) = &self.armor {
-            bonus += armor.bonus;
-        }
-        bonus
+        let weapon_bonus = self.weapon.as_ref().map_or(0, |w| w.get_bonus());
+        let shield_bonus = self.shield.as_ref().map_or(0, |s| s.get_bonus());
+        Some(weapon_bonus + shield_bonus)
     }
 
     pub fn take_damage(&mut self, damage: u32) -> u32 {
@@ -211,6 +137,30 @@ impl Character {
 
     pub fn is_alive(&self) -> bool {
         self.hit_points > 0
+    }
+}
+
+impl Equipment {
+    pub fn new(name: String, equipment_type: EquipmentType) -> Self {
+        Self {
+            name,
+            equipment_type,
+        }
+    }
+
+    pub fn get_bonus(&self) -> i32 {
+        match &self.equipment_type {
+            EquipmentType::Weapon(weapon_type) => match weapon_type {
+                WeaponType::Light => -1,
+                WeaponType::Medium => 0,
+                WeaponType::Heavy => 1,
+            },
+            EquipmentType::Shield => 1,
+            EquipmentType::Armor(armor_type) => match armor_type {
+                ArmorType::Light => 1,
+                ArmorType::Heavy => 2,
+            },
+        }
     }
 }
 
