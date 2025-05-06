@@ -224,6 +224,7 @@ impl Player {
             println!("Tu inventario está vacío.");
         } else {
             println!("Tu inventario contiene:");
+            let mut seen_items = HashSet::new();
             for (i, item) in self.inventory.iter().enumerate() {
                 // Verificar si el objeto está equipado y por quién
                 let equipped_by = if item.is_equipment {
@@ -260,15 +261,18 @@ impl Player {
                     None
                 };
 
-                if i == self.inventory.len() - 1 {
-                    match equipped_by {
-                        Some((num, class)) => println!("- {} (equipado por Aventurero {} - {}).", item.base.description, num, class),
-                        None => println!("- {}.", item.base.description),
-                    }
-                } else {
-                    match equipped_by {
-                        Some((num, class)) => println!("- {} (equipado por Aventurero {} - {}),", item.base.description, num, class),
-                        None => println!("- {},", item.base.description),
+                // Solo mostrar el objeto si no lo hemos visto antes
+                if seen_items.insert(item.base.tag.clone()) {
+                    if i == self.inventory.len() - 1 {
+                        match equipped_by {
+                            Some((num, class)) => println!("- {} (equipado por Aventurero {} - {}).", item.base.description, num, class),
+                            None => println!("- {}.", item.base.description),
+                        }
+                    } else {
+                        match equipped_by {
+                            Some((num, class)) => println!("- {} (equipado por Aventurero {} - {}),", item.base.description, num, class),
+                            None => println!("- {},", item.base.description),
+                        }
                     }
                 }
             }
@@ -672,11 +676,40 @@ impl Player {
             println!("No puedes equipar {} porque no es un objeto equipable.", item.base.description);
         } else {
             println!("No tienes ese objeto en tu inventario.");
+            // Mostrar los objetos equipables disponibles
+            let equipable_items: Vec<&Item> = self.inventory.iter()
+                .filter(|item| item.is_equipment)
+                .collect();
+            
+            if !equipable_items.is_empty() {
+                println!("\nObjetos equipables disponibles:");
+                for (i, item) in equipable_items.iter().enumerate() {
+                    if i == equipable_items.len() - 1 {
+                        println!("- {} [{}].", item.base.description, item.base.tag);
+                    } else {
+                        println!("- {} [{}],", item.base.description, item.base.tag);
+                    }
+                }
+                println!("\nUsa el comando 'equipar [número_personaje] [id_objeto]'");
+                println!("Por ejemplo: 'equipar 1 espada_inicial' para equipar la espada al personaje 1");
+            }
         }
         false
     }
 
     pub fn execute_unequip(&mut self, equipment_type: &str) -> bool {
+        if equipment_type.is_empty() {
+            println!("¿Qué quieres desequipar?");
+            println!("\nComandos válidos:");
+            println!("- desequipar [número_personaje] arma");
+            println!("- desequipar [número_personaje] escudo");
+            println!("- desequipar [número_personaje] armadura");
+            println!("\nPor ejemplo:");
+            println!("- desequipar 1 arma    (para desequipar el arma del personaje 1)");
+            println!("- desequipar arma      (para desequipar el arma del primer personaje)");
+            return false;
+        }
+
         // Dividir el input en personaje y tipo de equipo
         let parts: Vec<&str> = equipment_type.split_whitespace().collect();
         let (character_index, equipment_type) = if parts.len() > 1 {
@@ -686,6 +719,10 @@ impl Player {
                     (Some(index - 1), parts[1].to_string())
                 } else {
                     println!("Número de personaje inválido. Usa un número entre 1 y {}.", self.characters.len());
+                    println!("\nComandos válidos:");
+                    println!("- desequipar [número_personaje] arma");
+                    println!("- desequipar [número_personaje] escudo");
+                    println!("- desequipar [número_personaje] armadura");
                     return false;
                 }
             } else {
@@ -699,7 +736,17 @@ impl Player {
             "arma" | "weapon" => Some(EquipmentType::Weapon),
             "escudo" | "shield" => Some(EquipmentType::Shield),
             "armadura" | "armor" => Some(EquipmentType::Armor),
-            _ => None,
+            _ => {
+                println!("Tipo de equipamiento no válido. Usa 'arma', 'escudo' o 'armadura'.");
+                println!("\nComandos válidos:");
+                println!("- desequipar [número_personaje] arma");
+                println!("- desequipar [número_personaje] escudo");
+                println!("- desequipar [número_personaje] armadura");
+                println!("\nPor ejemplo:");
+                println!("- desequipar 1 arma    (para desequipar el arma del personaje 1)");
+                println!("- desequipar arma      (para desequipar el arma del primer personaje)");
+                return false;
+            }
         };
 
         if let Some(equipment_type) = equipment_type {
@@ -715,9 +762,18 @@ impl Player {
                 return true;
             } else {
                 println!("{} no tiene nada equipado en ese slot.", character.class);
+                // Mostrar el equipamiento actual del personaje
+                println!("\nEquipamiento actual del {}:", character.class);
+                if let Some(weapon) = &character.weapon {
+                    println!("- Arma: {}", weapon.name);
+                }
+                if let Some(shield) = &character.shield {
+                    println!("- Escudo: {}", shield.name);
+                }
+                if let Some(armor) = &character.armor {
+                    println!("- Armadura: {}", armor.name);
+                }
             }
-        } else {
-            println!("Tipo de equipamiento no válido. Usa 'arma', 'escudo' o 'armadura'.");
         }
         false
     }

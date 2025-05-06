@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Class {
     Fighter,
     Cleric,
@@ -55,15 +55,92 @@ pub struct Character {
 impl Character {
     pub fn new(class: Class) -> Character {
         let max_hit_points = Self::calculate_hit_points(&class, 1);
-        Character {
-            class,
+        let mut character = Character {
+            class: class.clone(),
             hit_points: max_hit_points,
             max_hit_points,
             level: 1,
             weapon: None,
             shield: None,
             armor: None,
+        };
+
+        // Asignar equipo inicial según la clase
+        match class {
+            Class::Fighter => {
+                character.weapon = Some(Equipment {
+                    name: "una espada de hierro".to_string(),
+                    equipment_type: EquipmentType::Weapon,
+                    bonus: 0,
+                });
+                character.armor = Some(Equipment {
+                    name: "una armadura de cuero".to_string(),
+                    equipment_type: EquipmentType::Armor,
+                    bonus: 1,
+                });
+            },
+            Class::Cleric => {
+                character.weapon = Some(Equipment {
+                    name: "un hacha de batalla".to_string(),
+                    equipment_type: EquipmentType::Weapon,
+                    bonus: 1,
+                });
+                character.shield = Some(Equipment {
+                    name: "un escudo de madera".to_string(),
+                    equipment_type: EquipmentType::Shield,
+                    bonus: 1,
+                });
+            },
+            Class::Rogue => {
+                character.weapon = Some(Equipment {
+                    name: "una daga ligera".to_string(),
+                    equipment_type: EquipmentType::Weapon,
+                    bonus: -1,
+                });
+            },
+            Class::Wizard => {
+                character.weapon = Some(Equipment {
+                    name: "una daga ligera".to_string(),
+                    equipment_type: EquipmentType::Weapon,
+                    bonus: -1,
+                });
+            },
+            Class::Barbarian => {
+                character.weapon = Some(Equipment {
+                    name: "un hacha de batalla".to_string(),
+                    equipment_type: EquipmentType::Weapon,
+                    bonus: 1,
+                });
+            },
+            Class::Elf => {
+                character.weapon = Some(Equipment {
+                    name: "una espada de hierro".to_string(),
+                    equipment_type: EquipmentType::Weapon,
+                    bonus: 0,
+                });
+            },
+            Class::Dwarf => {
+                character.weapon = Some(Equipment {
+                    name: "un hacha de batalla".to_string(),
+                    equipment_type: EquipmentType::Weapon,
+                    bonus: 1,
+                });
+                character.armor = Some(Equipment {
+                    name: "una armadura de cuero".to_string(),
+                    equipment_type: EquipmentType::Armor,
+                    bonus: 1,
+                });
+            },
+            Class::Halfling => {
+                character.weapon = Some(Equipment {
+                    name: "una daga ligera".to_string(),
+                    equipment_type: EquipmentType::Weapon,
+                    bonus: -1,
+                });
+            },
         }
+
+        character
     }
 
     fn calculate_hit_points(class: &Class, level: u32) -> u32 {

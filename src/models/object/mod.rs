@@ -275,18 +275,9 @@ lazy_static! {
         campo.content.add_item(Item::new("moneda", "una moneda de plata", false));
 
         pueblo.content.add_npc("guardia");
-        pueblo.content.add_item(Item::new_equipment("espada", "una espada de hierro", true, EquipmentType::Weapon, 0));
-        pueblo.content.add_item(Item::new_equipment("daga", "una daga ligera", true, EquipmentType::Weapon, -1));
-        pueblo.content.add_item(Item::new_equipment("armadura", "una armadura de cuero", true, EquipmentType::Armor, 1));
-        
         // Añadir grupos de NPCs a sus ubicaciones
         bosque.content.add_npc("goblins");
-        bosque.content.add_item(Item::new_equipment("hacha", "un hacha de batalla", true, EquipmentType::Weapon, 1));
-        bosque.content.add_item(Item::new_equipment("escudo", "un escudo de madera", true, EquipmentType::Shield, 1));
-        
         ruinas.content.add_npc("orcos");
-        ruinas.content.add_item(Item::new_equipment("armadura_pesada", "una armadura de placas", true, EquipmentType::Armor, 2));
-
         // Añadir conexiones
         pueblo.add_connection("campo");
 
