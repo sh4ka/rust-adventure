@@ -20,6 +20,7 @@ pub enum Command {
 pub fn parse_command(input: &str) -> Command {
     let words: Vec<&str> = input.split_whitespace().collect();
     match words.first() {
+        Some(&"1") | Some(&"2") | Some(&"3") | Some(&"4") => Command::Attack(words[0].to_string()),
         Some(&"ir") => Command::Go(words.get(1).map(|&s| s.to_string())),
         Some(&"mirar") => Command::Look,
         Some(&"coger") => Command::Take(words.get(1).unwrap_or(&"").to_string()),
@@ -38,6 +39,19 @@ pub fn parse_command(input: &str) -> Command {
 }
 
 pub fn execute_command(player: &mut Player, command: Command) -> String {
+    // Si estamos en combate y el comando es un número, tratarlo como una acción de combate
+    if player.current_combat_enemies.is_some() {
+        if let Command::Attack(target) = &command {
+            if let Ok(choice) = target.parse::<u32>() {
+                if choice >= 1 && choice <= 4 {
+                    return player.execute_attack(&target);
+                }
+            }
+            // Si estamos en combate, ignorar otros comandos excepto los de combate
+            return "No puedes hacer eso durante el combate. Usa los números 1-4 para las acciones de combate.".to_string();
+        }
+    }
+
     match command {
         Command::Go(location) => player.execute_go(location.as_deref()),
         Command::Look => player.execute_look(),
@@ -63,7 +77,7 @@ pub fn execute_command(player: &mut Player, command: Command) -> String {
             if player.execute_search() {
                 "".to_string()
             } else {
-                "No encuentras nada especial...".to_string()
+                "No encuentras nada especial.".to_string()
             }
         },
         Command::Status => player.execute_status(),
@@ -96,23 +110,19 @@ pub fn execute_command(player: &mut Player, command: Command) -> String {
         Command::Help => {
             let mut help = String::from("Comandos disponibles:\n");
             help.push_str("  mirar - Observar la ubicación actual\n");
-            help.push_str("  ir <lugar> - Ir a otro lugar\n");
-            help.push_str("  coger <objeto> - Coger un objeto\n");
-            help.push_str("  soltar <objeto> - Soltar un objeto\n");
+            help.push_str("  ir [lugar] - Ir a una ubicación\n");
+            help.push_str("  coger [objeto] - Recoger un objeto\n");
+            help.push_str("  soltar [objeto] - Soltar un objeto\n");
             help.push_str("  inventario - Ver tu inventario\n");
-            help.push_str("  estado - Ver el estado del grupo\n");
             help.push_str("  buscar - Buscar objetos ocultos\n");
-            help.push_str("  atacar <enemigo> - Atacar a un enemigo\n");
-            help.push_str("  equipar [personaje] <objeto> - Equipar un objeto (opcionalmente a un personaje específico)\n");
-            help.push_str("  desequipar <objeto> - Desequipar un objeto\n");
-            help.push_str("  ayuda - Mostrar esta ayuda\n");
+            help.push_str("  estado - Ver el estado del grupo\n");
+            help.push_str("  atacar - Atacar a un enemigo\n");
+            help.push_str("  hablar [npc] - Hablar con un NPC\n");
+            help.push_str("  equipar [personaje] [tipo] - Equipar un objeto\n");
+            help.push_str("  desequipar [personaje] [tipo] - Desequipar un objeto\n");
             help.push_str("  salir - Salir del juego\n");
-            help.push_str("\nDurante el combate:\n");
-            help.push_str("  1 - Continuar el combate\n");
-            help.push_str("  2 - Huir\n");
-            help.push_str("  3 - Usar un objeto\n");
-            help.push_str("  4 - Ver estado detallado");
             help
         },
+        _ => "Comando no válido.".to_string(),
     }
 } 

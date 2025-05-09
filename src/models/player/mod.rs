@@ -472,12 +472,27 @@ impl Player {
                 }
 
                 // Usar el número de enemigos guardado o calcular el total inicial
-                let mut enemies_remaining = if self.current_combat_enemies.is_some() {
-                    self.current_combat_enemies.unwrap()
+                let mut enemies_remaining = if let Some(remaining) = self.current_combat_enemies {
+                    remaining
                 } else {
                     let total_enemies: u8 = hostile_npcs.iter().map(|npc| npc.count).sum();
                     total_enemies
                 };
+
+                // Si es una acción de combate (1-4), procesar la acción
+                if target_tag == "1" {
+                    // Continuar el combate
+                    self.current_combat_enemies = Some(enemies_remaining);
+                    return self.execute_attack("continuar");
+                } else if target_tag == "2" {
+                    // Huir
+                    self.current_combat_enemies = None;
+                    return "Has huido del combate.".to_string();
+                } else if target_tag == "3" {
+                    return "Función de usar objetos aún no implementada.".to_string();
+                } else if target_tag == "4" {
+                    return self.execute_status();
+                }
 
                 // Rondas de combate
                 while enemies_remaining > 0 {
@@ -615,7 +630,6 @@ impl Player {
                         }
 
                         // Interrumpir el combate para que el jugador decida qué hacer
-                        response.push_str(&format!("\nQuedan {} enemigos.\n", enemies_remaining));
                         response.push_str("\n¿Qué quieres hacer?\n");
                         response.push_str("1. Continuar el combate\n");
                         response.push_str("2. Huir\n");
@@ -625,10 +639,8 @@ impl Player {
                     }
                 }
 
-                // Combate terminado, limpiar el estado
+                // Combate terminado, limpiar el estado y marcar enemigos como derrotados
                 self.current_combat_enemies = None;
-
-                // Marcar los enemigos como derrotados
                 for npc in hostile_npcs {
                     self.defeated_npcs.insert(npc.base.tag.clone());
                 }
