@@ -223,33 +223,42 @@ impl Player {
         if self.inventory.is_empty() {
             println!("Tu inventario está vacío.");
         } else {
-            println!("Tu inventario contiene:");
+            // Primero mostrar objetos no equipados
+            let mut non_equipped_items: Vec<&Item> = Vec::new();
             let mut seen_items = HashSet::new();
-            for (i, item) in self.inventory.iter().enumerate() {
-                // Verificar si el objeto está equipado y por quién
-                let equipped_by = if item.is_equipment {
-                    let mut equipped = None;
-                    for (index, character) in self.characters.iter().enumerate() {
+
+            for item in self.inventory.iter() {
+                let is_equipped = if item.is_equipment {
+                    let mut equipped = false;
+                    for character in &self.characters {
                         if let Some(equipment) = item.to_equipment() {
                             match equipment.equipment_type {
+                                EquipmentType::Basic => (),
                                 EquipmentType::Weapon(_) => {
                                     if let Some(weapon) = &character.weapon {
                                         if weapon.name == item.base.description {
-                                            equipped = Some((index + 1, &character.class));
+                                            equipped = true;
                                         }
                                     }
                                 },
                                 EquipmentType::Shield => {
                                     if let Some(shield) = &character.shield {
                                         if shield.name == item.base.description {
-                                            equipped = Some((index + 1, &character.class));
+                                            equipped = true;
                                         }
                                     }
                                 },
                                 EquipmentType::Armor(_) => {
                                     if let Some(armor) = &character.armor {
                                         if armor.name == item.base.description {
-                                            equipped = Some((index + 1, &character.class));
+                                            equipped = true;
+                                        }
+                                    }
+                                },
+                                EquipmentType::Bow => {
+                                    if let Some(bow) = &character.bow {
+                                        if bow.name == item.base.description {
+                                            equipped = true;
                                         }
                                     }
                                 },
@@ -258,23 +267,51 @@ impl Player {
                     }
                     equipped
                 } else {
-                    None
+                    false
                 };
 
-                // Solo mostrar el objeto si no lo hemos visto antes
-                if seen_items.insert(item.base.tag.clone()) {
-                    if i == self.inventory.len() - 1 {
-                        match equipped_by {
-                            Some((num, class)) => println!("- {} (equipado por Aventurero {} - {}).", item.base.description, num, class),
-                            None => println!("- {}.", item.base.description),
-                        }
+                if !is_equipped && seen_items.insert(item.base.tag.clone()) {
+                    non_equipped_items.push(item);
+                }
+            }
+
+            if !non_equipped_items.is_empty() {
+                println!("Objetos en el inventario:");
+                for (i, item) in non_equipped_items.iter().enumerate() {
+                    if i == non_equipped_items.len() - 1 {
+                        println!("- {}.", item.base.description);
                     } else {
-                        match equipped_by {
-                            Some((num, class)) => println!("- {} (equipado por Aventurero {} - {}),", item.base.description, num, class),
-                            None => println!("- {},", item.base.description),
-                        }
+                        println!("- {},", item.base.description);
                     }
                 }
+            }
+
+            // Luego mostrar objetos equipados
+            let mut has_equipped = false;
+            for (index, character) in self.characters.iter().enumerate() {
+                if character.weapon.is_some() || character.shield.is_some() || 
+                   character.armor.is_some() || character.bow.is_some() {
+                    if !has_equipped {
+                        println!("\nObjetos equipados:");
+                        has_equipped = true;
+                    }
+                    if let Some(weapon) = &character.weapon {
+                        println!("- {} (equipado por Aventurero {} - {})", weapon.name, index + 1, character.class);
+                    }
+                    if let Some(shield) = &character.shield {
+                        println!("- {} (equipado por Aventurero {} - {})", shield.name, index + 1, character.class);
+                    }
+                    if let Some(armor) = &character.armor {
+                        println!("- {} (equipado por Aventurero {} - {})", armor.name, index + 1, character.class);
+                    }
+                    if let Some(bow) = &character.bow {
+                        println!("- {} (equipado por Aventurero {} - {})", bow.name, index + 1, character.class);
+                    }
+                }
+            }
+
+            if non_equipped_items.is_empty() && !has_equipped {
+                println!("Tu inventario está vacío.");
             }
         }
     }
@@ -654,6 +691,8 @@ impl Player {
                 for item in inventory.iter().filter(|i| i.is_equipment) {
                     if let Some(et) = &item.equipment_type {
                         match et {
+                            EquipmentType::Basic => println!("- {} (objeto básico)", item.base.description),
+                            EquipmentType::Bow => println!("- {} (arco)", item.base.description),
                             EquipmentType::Weapon(_) => println!("- {} (arma)", item.base.description),
                             EquipmentType::Shield => println!("- {} (escudo)", item.base.description),
                             EquipmentType::Armor(_) => println!("- {} (armadura)", item.base.description),

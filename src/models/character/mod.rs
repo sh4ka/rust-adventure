@@ -28,9 +28,11 @@ pub enum ArmorType {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EquipmentType {
+    Basic,
     Weapon(WeaponType),
     Shield,
     Armor(ArmorType),
+    Bow,
 }
 
 #[derive(Debug, Clone)]
@@ -63,6 +65,7 @@ pub struct Character {
     pub weapon: Option<Equipment>,
     pub shield: Option<Equipment>,
     pub armor: Option<Equipment>,
+    pub bow: Option<Equipment>,
 }
 
 impl Character {
@@ -76,6 +79,7 @@ impl Character {
             weapon: None,
             shield: None,
             armor: None,
+            bow: None,
         }
     }
 
@@ -97,6 +101,8 @@ impl Character {
             EquipmentType::Weapon(_) => self.weapon.replace(equipment),
             EquipmentType::Shield => self.shield.replace(equipment),
             EquipmentType::Armor(_) => self.armor.replace(equipment),
+            EquipmentType::Bow => self.bow.replace(equipment),
+            _ => None,
         }
     }
 
@@ -105,6 +111,8 @@ impl Character {
             EquipmentType::Weapon(_) => self.weapon.take(),
             EquipmentType::Shield => self.shield.take(),
             EquipmentType::Armor(_) => self.armor.take(),
+            EquipmentType::Bow => self.bow.take(),
+            _ => None,
         }
     }
 
@@ -160,6 +168,7 @@ impl Equipment {
                 ArmorType::Light => 1,
                 ArmorType::Heavy => 2,
             },
+            _ => -2,
         }
     }
 }

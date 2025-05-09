@@ -1,180 +1,97 @@
-use lazy_static::lazy_static;
-use crate::models::object::{find_location, find_item, find_npc, find_passage};
 use crate::models::player::Player;
 
 #[derive(Debug, Clone)]
 pub enum Command {
+    Go(Option<String>),
     Look,
-    Go,
-    Take,
-    Drop,
+    Take(String),
+    Drop(String),
     Inventory,
     Search,
-    Help,
-    Exit,
-    Attack,
     Status,
-    Combat,
-    Equip,
-    Unequip,
-    Unknown,
+    Attack(String),
     Talk,
+    Equip(Vec<String>),
+    Unequip(Vec<String>),
+    Salir,
+    Help,
 }
 
-#[derive(Debug, Clone)]
-pub struct GameCommand {
-    command: Command,
-    args: Vec<String>,
-}
-
-impl GameCommand {
-    pub fn new(command: Command) -> Self {
-        Self {
-            command,
-            args: Vec::new(),
-        }
-    }
-
-    pub fn with_args(mut self, args: Vec<String>) -> Self {
-        self.args = args;
-        self
-    }
-}
-
-pub fn parse_command(input: &str) -> GameCommand {
+pub fn parse_command(input: &str) -> Command {
     let words: Vec<&str> = input.split_whitespace().collect();
-    
-    if words.is_empty() {
-        return GameCommand::new(Command::Unknown);
-    }
-
-    match words[0].to_lowercase().as_str() {
-        "mirar" => GameCommand::new(Command::Look),
-        "ir" => {
-            if words.len() > 1 {
-                let args: Vec<String> = words.iter().skip(1).map(|s| s.to_string()).collect();
-                GameCommand::new(Command::Go).with_args(args)
-            } else {
-                GameCommand::new(Command::Go)
-            }
-        },
-        "coger" => {
-            if words.len() > 1 {
-                let args: Vec<String> = words.iter().skip(1).map(|s| s.to_string()).collect();
-                GameCommand::new(Command::Take).with_args(args)
-            } else {
-                GameCommand::new(Command::Take)
-            }
-        },
-        "soltar" => {
-            if words.len() > 1 {
-                let args: Vec<String> = words.iter().skip(1).map(|s| s.to_string()).collect();
-                GameCommand::new(Command::Drop).with_args(args)
-            } else {
-                GameCommand::new(Command::Drop)
-            }
-        },
-        "inventario" => GameCommand::new(Command::Inventory),
-        "buscar" => GameCommand::new(Command::Search),
-        "ayuda" => GameCommand::new(Command::Help),
-        "salir" => GameCommand::new(Command::Exit),
-        "estado" => GameCommand::new(Command::Status),
-        "equipar" | "equip" => {
-            let args: Vec<String> = words.iter().skip(1).map(|s| s.to_string()).collect();
-            GameCommand::new(Command::Equip).with_args(args)
-        },
-        "desequipar" | "unequip" => {
-            let args: Vec<String> = words.iter().skip(1).map(|s| s.to_string()).collect();
-            GameCommand::new(Command::Unequip).with_args(args)
-        },
-        "atacar" => {
-            if words.len() > 1 {
-                let args: Vec<String> = words.iter().skip(1).map(|s| s.to_string()).collect();
-                GameCommand::new(Command::Attack).with_args(args)
-            } else {
-                GameCommand::new(Command::Attack)
-            }
-        },
-        "1" => GameCommand::new(Command::Combat).with_args(vec!["continuar".to_string()]),
-        "2" => GameCommand::new(Command::Combat).with_args(vec!["huir".to_string()]),
-        "3" => GameCommand::new(Command::Combat).with_args(vec!["usar".to_string()]),
-        "4" => GameCommand::new(Command::Combat).with_args(vec!["estado".to_string()]),
-        _ => GameCommand::new(Command::Unknown),
+    match words.first() {
+        Some(&"ir") => Command::Go(words.get(1).map(|&s| s.to_string())),
+        Some(&"mirar") => Command::Look,
+        Some(&"coger") => Command::Take(words.get(1).unwrap_or(&"").to_string()),
+        Some(&"soltar") => Command::Drop(words.get(1).unwrap_or(&"").to_string()),
+        Some(&"inventario") => Command::Inventory,
+        Some(&"buscar") => Command::Search,
+        Some(&"estado") => Command::Status,
+        Some(&"atacar") => Command::Attack(words.get(1).unwrap_or(&"").to_string()),
+        Some(&"hablar") => Command::Talk,
+        Some(&"equipar") => Command::Equip(words[1..].iter().map(|&s| s.to_string()).collect()),
+        Some(&"desequipar") => Command::Unequip(words[1..].iter().map(|&s| s.to_string()).collect()),
+        Some(&"salir") => Command::Salir,
+        Some(&"ayuda") => Command::Help,
+        _ => Command::Look,
     }
 }
 
-pub fn execute_command(player: &mut Player, command: GameCommand) -> String {
-    match command.command {
-        Command::Look => {
-            player.execute_look()
-        },
-        Command::Go => {
-            if let Some(direction) = command.args.first() {
-                player.execute_go(Some(direction))
-            } else {
-                "¿A dónde quieres ir?".to_string()
-            }
-        },
-        Command::Take => {
-            if let Some(item) = command.args.first() {
-                player.execute_take(item);
+pub fn execute_command(player: &mut Player, command: Command) -> String {
+    match command {
+        Command::Go(location) => player.execute_go(location.as_deref()),
+        Command::Look => player.execute_look(),
+        Command::Take(item) => {
+            if player.execute_take(&item) {
                 "".to_string()
             } else {
-                "¿Qué quieres tomar?".to_string()
+                "No puedes coger ese objeto.".to_string()
             }
         },
-        Command::Drop => {
-            if let Some(item) = command.args.first() {
-                player.execute_drop(item);
+        Command::Drop(item) => {
+            if player.execute_drop(&item) {
                 "".to_string()
             } else {
-                "¿Qué quieres soltar?".to_string()
+                "No puedes soltar ese objeto.".to_string()
             }
         },
         Command::Inventory => {
             player.execute_inventory();
             "".to_string()
         },
-        Command::Equip => {
-            let args: Vec<&str> = command.args.iter().map(|s| s.as_str()).collect();
-            player.execute_equip(&args);
-            "".to_string()
-        },
-        Command::Unequip => {
-            let args: Vec<&str> = command.args.iter().map(|s| s.as_str()).collect();
-            player.execute_unequip(&args);
-            "".to_string()
-        },
-        Command::Talk => {
-            if let Some(npc) = command.args.first() {
-                player.execute_talk_to_npc(npc);
-                "".to_string()
-            } else {
-                "¿Con quién quieres hablar?".to_string()
-            }
-        },
-        Command::Attack => {
-            if let Some(target) = command.args.first() {
-                player.execute_attack(target)
-            } else {
-                "¿A quién quieres atacar?".to_string()
-            }
-        },
-        Command::Exit => {
-            println!("¡Hasta pronto!");
-            std::process::exit(0);
-            "".to_string()
-        },
-        Command::Status => {
-            player.execute_status();
-            "".to_string()
-        },
         Command::Search => {
             if player.execute_search() {
                 "".to_string()
             } else {
-                "No encuentras nada.".to_string()
+                "No encuentras nada especial...".to_string()
             }
+        },
+        Command::Status => player.execute_status(),
+        Command::Attack(target) => player.execute_attack(&target),
+        Command::Talk => {
+            println!("¿Con quién quieres hablar?");
+            "".to_string()
+        },
+        Command::Equip(args) => {
+            let args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+            if player.execute_equip(&args) {
+                "".to_string()
+            } else {
+                "No puedes equipar ese objeto.".to_string()
+            }
+        },
+        Command::Unequip(args) => {
+            let args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+            if player.execute_unequip(&args) {
+                "".to_string()
+            } else {
+                "No puedes desequipar ese objeto.".to_string()
+            }
+        },
+        Command::Salir => {
+            println!("¡Hasta pronto!");
+            std::process::exit(0);
+            "".to_string()
         },
         Command::Help => {
             let mut help = String::from("Comandos disponibles:\n");
@@ -197,39 +114,5 @@ pub fn execute_command(player: &mut Player, command: GameCommand) -> String {
             help.push_str("  4 - Ver estado detallado");
             help
         },
-        Command::Combat => {
-            if let Some(action) = command.args.first() {
-                match action.as_str() {
-                    "continuar" => player.execute_attack("continuar"),
-                    "huir" => {
-                        "¡Huyes del combate!".to_string()
-                    },
-                    "usar" => {
-                        "Función no implementada aún.".to_string()
-                    },
-                    "estado" => {
-                        player.execute_status();
-                        "".to_string()
-                    },
-                    _ => "Acción no válida.".to_string(),
-                }
-            } else {
-                "¿Qué acción quieres realizar?".to_string()
-            }
-        },
-        Command::Unknown => "No entiendo ese comando.".to_string(),
     }
-}
-
-lazy_static! {
-    pub static ref COMMANDS: Vec<GameCommand> = vec![
-        GameCommand::new(Command::Look),
-        GameCommand::new(Command::Go),
-        GameCommand::new(Command::Take),
-        GameCommand::new(Command::Drop),
-        GameCommand::new(Command::Inventory),
-        GameCommand::new(Command::Search),
-        GameCommand::new(Command::Help),
-        GameCommand::new(Command::Exit),
-    ];
-}
+} 
