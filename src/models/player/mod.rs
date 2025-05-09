@@ -1,6 +1,6 @@
 use crate::Character;
 use crate::models::object::{Location, Item, NPC, Passage, find_location, find_npc, find_item_in_location, find_passage, find_item, PASSAGES, Attitude};
-use crate::models::character::{Equipment, EquipmentType, WeaponType, ArmorType};
+use crate::models::character::{Equipment, EquipmentType, WeaponType, ArmorType, Class};
 use std::collections::{HashMap, HashSet};
 use rand::Rng;
 use std::io::{self, Write};
@@ -88,7 +88,14 @@ impl Player {
                     }
                     for npc in visible_npcs {
                         let attitude = match npc.attitude {
-                            Attitude::Hostile => format!(" (hostil, nivel {}, x{})", npc.level, npc.count),
+                            Attitude::Hostile => {
+                                let remaining = if let Some(remaining) = self.current_combat_enemies {
+                                    remaining
+                                } else {
+                                    npc.count
+                                };
+                                format!(" (hostil, nivel {}, x{})", npc.level, remaining)
+                            },
                             Attitude::Neutral => " (neutral)".to_string(),
                             Attitude::Friendly => " (amistoso)".to_string(),
                         };
@@ -477,13 +484,15 @@ impl Player {
                     // Fase de ataque de los aventureros
                     response.push_str("\nAtaque de los aventureros:\n");
                     let mut enemies_defeated = 0;
+                    let enemies_outnumbered = self.characters.len() > enemies_remaining as usize;
+                    
                     for (i, character) in self.characters.iter_mut().enumerate() {
                         if enemies_remaining == 0 {
                             break;
                         }
 
                         // Verificar si el personaje tiene un arma equipada
-                        match character.get_equipment_bonus() {
+                        match character.get_attack_bonus() {
                             None => {
                                 response.push_str(&format!(
                                     "Aventurero {} ({}) no puede atacar porque no tiene un arma equipada.\n",
@@ -493,12 +502,19 @@ impl Player {
                             },
                             Some(equipment_bonus) => {
                                 let attack_roll = rand::thread_rng().gen_range(1..=6);
-                                let attack_total = attack_roll + character.level as i32 + equipment_bonus;
                                 let npc = &hostile_npcs[0]; // Todos los enemigos son del mismo tipo
+                                let class_bonus = character.get_class_bonus(enemies_outnumbered, Some(&npc.base.tag));
+                                let attack_total = attack_roll + class_bonus + equipment_bonus;
                                 
+                                let bonus_message = if npc.base.tag.contains("orc") && matches!(character.class, Class::Elf) {
+                                    format!("{} + 1 (vs orcos)", character.level)
+                                } else {
+                                    character.level.to_string()
+                                };
+
                                 response.push_str(&format!(
                                     "Aventurero {} (nivel {}) tira {} + {} + {} = {}\n",
-                                    i + 1, character.level, attack_roll, character.level, equipment_bonus, attack_total
+                                    i + 1, character.level, attack_roll, bonus_message, equipment_bonus, attack_total
                                 ));
 
                                 if attack_total >= npc.level as i32 {
@@ -584,7 +600,7 @@ impl Player {
                         // Mostrar el estado actual del grupo
                         response.push_str("\nEstado del grupo después del contraataque:\n");
                         for (i, character) in self.characters.iter().enumerate() {
-                            let equipment_bonus = character.get_equipment_bonus().unwrap_or(0);
+                            let attack_bonus = character.get_attack_bonus().unwrap_or(0);
                             let defense_bonus = character.get_defense_bonus();
                             response.push_str(&format!(
                                 "Aventurero {} ({}, nivel {}): {} PV/{} PV (Ataque: {}, Defensa: {})\n",
@@ -593,7 +609,7 @@ impl Player {
                                 character.level,
                                 character.hit_points,
                                 character.max_hit_points,
-                                equipment_bonus,
+                                attack_bonus,
                                 defense_bonus
                             ));
                         }
@@ -772,14 +788,6 @@ impl Player {
             }
         } else {
             println!("No veo a nadie con ese nombre.");
-        }
-    }
-
-    pub fn get_attack_bonus(&self, character_index: usize) -> i32 {
-        if let Some(character) = self.characters.get(character_index) {
-            character.get_attack_bonus()
-        } else {
-            0
         }
     }
 

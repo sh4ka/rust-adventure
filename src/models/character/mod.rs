@@ -1,16 +1,39 @@
 use std::fmt::{Display, Formatter};
 use crate::models::object::Item;
+use std::collections::HashSet;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Class {
-    Fighter,
-    Cleric,
-    Rogue,
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum CharacterTrait {
+    // Traits de combate
+    Strong,          // Fuerte: +1 al daño con armas pesadas
+    Agile,           // Ágil: +1 a la defensa con armadura ligera
+    Tough,           // Resistente: +1 PV por nivel
+    Precise,         // Preciso: +1 al ataque con armas a distancia
+    ShieldMaster,    // Maestro de escudo: +1 a la defensa con escudo
+    
+    // Traits de exploración
+    Stealthy,        // Sigiloso: +20% probabilidad de encontrar objetos ocultos
+    Perceptive,      // Perspicaz: Puede ver objetos ocultos sin buscarlos
+    Lucky,           // Afortunado: +10% probabilidad de éxito en todas las acciones
+    
+    // Traits de clase específicos
+    Spellcaster,     // Lanzador de conjuros: Puede usar objetos mágicos
+    Healer,          // Sanador: Puede usar pociones de forma más efectiva
+    Thief,           // Ladrón: Puede abrir cerraduras sin ganzúas
+    Berserker,       // Berserker: +2 al ataque cuando está herido
+    NaturalArmor,    // Armadura natural: +1 a la defensa sin armadura
+    ForestFriend,    // Amigo del bosque: Bonus en zonas naturales
+    MountainBorn,    // Nacido en la montaña: Bonus en zonas montañosas
+    Nimble,          // Ágil: Puede esquivar ataques más fácilmente
+    // traits de clase y raza
+    Warrior,
     Wizard,
+    Rogue,
+    Cleric,
     Barbarian,
-    Elf,
-    Dwarf,
-    Halfling,
+    Dwarf,           // Enano: +1 a la defensa
+    Elf,             // Elfo: +1 a la defensa
+    Halfling,        // Mediano: +1 a la defensa
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -56,6 +79,51 @@ impl Display for Class {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Class {
+    Fighter,
+    Cleric,
+    Rogue,
+    Wizard,
+    Barbarian,
+    Elf,
+    Dwarf,
+    Halfling,
+}
+
+impl Class {
+    pub fn get_traits(&self) -> HashSet<CharacterTrait> {
+        let mut traits = HashSet::new();
+        match self {
+            Class::Fighter => {
+                traits.insert(CharacterTrait::Warrior);
+            },
+            Class::Cleric => {
+                traits.insert(CharacterTrait::Cleric);
+            },
+            Class::Rogue => {
+                traits.insert(CharacterTrait::Rogue);
+            },
+            Class::Wizard => {
+                traits.insert(CharacterTrait::Wizard);
+            },
+            Class::Barbarian => {
+                traits.insert(CharacterTrait::Barbarian);
+            },
+            Class::Elf => {
+                traits.insert(CharacterTrait::Elf);
+            },
+            Class::Dwarf => {
+                traits.insert(CharacterTrait::Dwarf);
+            },
+            Class::Halfling => {
+                traits.insert(CharacterTrait::Halfling);
+            }
+        }
+        traits
+    }
+}
+
 #[derive(Debug)]
 pub struct Character {
     pub class: Class,
@@ -66,11 +134,13 @@ pub struct Character {
     pub shield: Option<Equipment>,
     pub armor: Option<Equipment>,
     pub bow: Option<Equipment>,
+    pub traits: HashSet<CharacterTrait>,
 }
 
 impl Character {
     pub fn new(class: Class) -> Character {
         let max_hit_points = Self::calculate_hit_points(&class, 1);
+        let traits = class.get_traits();
         Character {
             class: class.clone(),
             hit_points: max_hit_points,
@@ -80,6 +150,7 @@ impl Character {
             shield: None,
             armor: None,
             bow: None,
+            traits,
         }
     }
 
@@ -116,25 +187,70 @@ impl Character {
         }
     }
 
-    pub fn get_attack_bonus(&self) -> i32 {
-        let weapon_bonus = self.weapon.as_ref().map_or(0, |w| w.get_bonus());
-        let shield_bonus = self.shield.as_ref().map_or(0, |s| s.get_bonus());
-        weapon_bonus + shield_bonus
-    }
-
-    pub fn get_defense_bonus(&self) -> i32 {
-        let armor_bonus = self.armor.as_ref().map_or(0, |a| a.get_bonus());
-        let shield_bonus = self.shield.as_ref().map_or(0, |s| s.get_bonus());
-        armor_bonus + shield_bonus
-    }
-
-    pub fn get_equipment_bonus(&self) -> Option<i32> {
+    pub fn get_attack_bonus(&self) -> Option<i32> {
         if self.weapon.is_none() {
             return None;
         }
-        let weapon_bonus = self.weapon.as_ref().map_or(0, |w| w.get_bonus());
-        let shield_bonus = self.shield.as_ref().map_or(0, |s| s.get_bonus());
-        Some(weapon_bonus + shield_bonus)
+        let mut bonus = 0;
+        
+        // Bonus por arma
+        if let Some(weapon) = &self.weapon {
+            if weapon.equipment_type == EquipmentType::Weapon(WeaponType::Light) {
+                bonus += -1;
+            } else if weapon.equipment_type == EquipmentType::Weapon(WeaponType::Medium) {
+                bonus += 0;
+            } else if weapon.equipment_type == EquipmentType::Weapon(WeaponType::Heavy) {
+                bonus += 1;
+            }
+        }
+
+        Some(bonus)
+    }
+
+    pub fn get_defense_bonus(&self) -> i32 {
+        let mut bonus = 0;
+        
+        // Bonus por armadura
+        if let Some(armor) = &self.armor {
+            if armor.equipment_type == EquipmentType::Armor(ArmorType::Light) {
+                bonus += 1;
+            } else if armor.equipment_type == EquipmentType::Armor(ArmorType::Heavy) {
+                bonus += 2;
+            }
+        }
+
+        // Bonus por escudo
+        if let Some(shield) = &self.shield {
+            bonus += 1;
+        }
+
+        bonus
+    }
+
+    pub fn get_class_bonus(&self, enemies_outnumbered: bool, enemy_tag: Option<&str>) -> i32 {
+        let is_two_handed = if let Some(weapon) = &self.weapon {
+            matches!(weapon.equipment_type, EquipmentType::Weapon(WeaponType::Heavy))
+        } else {
+            false
+        };
+
+        let mut bonus = match &self.class {
+            Class::Fighter => self.level as i32,
+            Class::Cleric => (self.level as f32 / 2.0).floor() as i32,
+            Class::Rogue => if enemies_outnumbered { self.level as i32 } else { 0 },
+            Class::Wizard => 0,
+            Class::Barbarian => self.level as i32,
+            Class::Elf => if is_two_handed { 0 } else { self.level as i32 },
+            Class::Dwarf => self.level as i32,
+            Class::Halfling => 0,
+        };
+
+        // Bonus adicional para Elfos contra orcos
+        if matches!(&self.class, Class::Elf) && enemy_tag.map_or(false, |tag| tag.contains("orc")) {
+            bonus += 1;
+        }
+
+        bonus
     }
 
     pub fn take_damage(&mut self, damage: u32) -> u32 {
@@ -145,6 +261,10 @@ impl Character {
 
     pub fn is_alive(&self) -> bool {
         self.hit_points > 0
+    }
+
+    pub fn has_trait(&self, trait_type: &CharacterTrait) -> bool {
+        self.traits.contains(trait_type)
     }
 }
 
