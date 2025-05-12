@@ -83,6 +83,32 @@ pub struct Item {
     pub equipment_type: Option<EquipmentType>, // Tipo de equipamiento si es equipable
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum NPCTag {
+    // Razas
+    Human,
+    Elf,
+    Dwarf,
+    Orc,
+    Goblin,
+    Halfling,
+    
+    // Tipos
+    Guard,
+    Monster,
+    Undead,
+    Beast,
+    Merchant,
+    Bandit,
+    Troll,
+    Ogre,
+    Giant,    
+    // Alineamientos
+    Friendly,
+    Neutral,
+    Hostile,
+}
+
 #[derive(Debug, Clone)]
 pub struct NPC {
     pub base: GameObject,
@@ -91,6 +117,7 @@ pub struct NPC {
     pub attitude: Attitude,      // Actitud del NPC hacia el jugador
     pub level: u8,              // Nivel del NPC (1-20)
     pub count: u8,              // Cantidad de NPCs de este tipo
+    pub tags: Vec<NPCTag>,      // Tags específicos del NPC
 }
 
 #[derive(Debug, Clone)]
@@ -187,6 +214,7 @@ impl NPC {
             attitude: Attitude::Neutral, // Por defecto, los NPCs son neutrales
             level: 1,                    // Por defecto, los NPCs son nivel 1
             count: 1,                    // Por defecto, hay 1 NPC
+            tags: Vec::new(),            // Inicialmente sin tags específicos
         }
     }
 
@@ -207,6 +235,16 @@ impl NPC {
 
     pub fn add_dialogue(&mut self, text: &str) {
         self.dialogue.push(text.to_string());
+    }
+
+    pub fn add_tag(&mut self, tag: NPCTag) {
+        if !self.tags.contains(&tag) {
+            self.tags.push(tag);
+        }
+    }
+
+    pub fn has_tag(&self, tag: &NPCTag) -> bool {
+        self.tags.contains(tag)
     }
 }
 
@@ -359,6 +397,8 @@ lazy_static! {
             .with_level(3);
         guardia.add_dialogue("Bienvenido a Woodspring. ¿En qué puedo ayudarte?");
         guardia.add_dialogue("Ten cuidado en el bosque, dicen que hay criaturas extrañas.");
+        guardia.add_tag(NPCTag::Human);
+        guardia.add_tag(NPCTag::Guard);
         m.insert("guardia".to_string(), guardia);
 
         // Grupo de goblins en el bosque
@@ -366,6 +406,8 @@ lazy_static! {
             .with_attitude(Attitude::Hostile)
             .with_level(3)
             .with_count(4);
+        goblins.add_tag(NPCTag::Goblin);
+        goblins.add_tag(NPCTag::Monster);
         m.insert("goblins".to_string(), goblins);
 
         // Grupo de orcos en las ruinas
@@ -373,6 +415,8 @@ lazy_static! {
             .with_attitude(Attitude::Hostile)
             .with_level(4)
             .with_count(7);
+        orcos.add_tag(NPCTag::Orc);
+        orcos.add_tag(NPCTag::Monster);
         m.insert("orcos".to_string(), orcos);
         
         m

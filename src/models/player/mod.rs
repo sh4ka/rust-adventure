@@ -1,9 +1,11 @@
 use crate::Character;
-use crate::models::object::{Location, Item, NPC, Passage, find_location, find_npc, find_item_in_location, find_passage, find_item, PASSAGES, Attitude};
+use crate::models::object::{Location, Item, NPC, Passage, find_location, find_npc, find_item_in_location, find_passage, find_item, PASSAGES, Attitude, NPCTag};
 use crate::models::character::{Equipment, EquipmentType, WeaponType, ArmorType, Class};
 use std::collections::{HashMap, HashSet};
 use rand::Rng;
 use std::io::{self, Write};
+
+use super::enemy;
 
 #[derive(Debug)]
 pub struct Player {
@@ -518,10 +520,10 @@ impl Player {
                             Some(equipment_bonus) => {
                                 let attack_roll = rand::thread_rng().gen_range(1..=6);
                                 let npc = &hostile_npcs[0]; // Todos los enemigos son del mismo tipo
-                                let class_bonus = character.get_class_bonus(enemies_outnumbered, Some(&npc.base.tag));
+                                let class_bonus = character.get_class_bonus(enemies_outnumbered, npc.tags.first());
                                 let attack_total = attack_roll + class_bonus + equipment_bonus;
                                 
-                                let bonus_message = if npc.base.tag.contains("orc") && matches!(character.class, Class::Elf) {
+                                let bonus_message = if npc.has_tag(&NPCTag::Orc) && matches!(character.class, Class::Elf) {
                                     format!("{} + 1 (vs orcos)", character.level)
                                 } else {
                                     character.level.to_string()
@@ -577,7 +579,7 @@ impl Player {
                             for _ in 0..enemies_for_this_char {
                                 let npc = &hostile_npcs[0]; // Todos los enemigos son del mismo tipo
                                 let defense_roll = rand::thread_rng().gen_range(1..=6);
-                                let defense_bonus = character.get_defense_bonus();
+                                let defense_bonus = character.get_defense_bonus(&npc.tags);
                                 let defense_total = defense_roll + defense_bonus;
                                 
                                 response.push_str(&format!(
@@ -615,17 +617,13 @@ impl Player {
                         // Mostrar el estado actual del grupo
                         response.push_str("\nEstado del grupo después del contraataque:\n");
                         for (i, character) in self.characters.iter().enumerate() {
-                            let attack_bonus = character.get_attack_bonus().unwrap_or(0);
-                            let defense_bonus = character.get_defense_bonus();
                             response.push_str(&format!(
-                                "Aventurero {} ({}, nivel {}): {} PV/{} PV (Ataque: {}, Defensa: {})\n",
+                                "Aventurero {} ({}, nivel {}): {} PV/{} PV\n",
                                 i + 1,
                                 character.class,
                                 character.level,
                                 character.hit_points,
-                                character.max_hit_points,
-                                attack_bonus,
-                                defense_bonus
+                                character.max_hit_points
                             ));
                         }
 
@@ -805,7 +803,7 @@ impl Player {
 
     pub fn get_defense_bonus(&self, character_index: usize) -> i32 {
         if let Some(character) = self.characters.get(character_index) {
-            character.get_defense_bonus()
+            character.get_defense_bonus(&[])
         } else {
             0
         }

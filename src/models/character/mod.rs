@@ -1,5 +1,5 @@
 use std::fmt::{Display, Formatter};
-use crate::models::object::Item;
+use crate::models::object::{Item, NPCTag};
 use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -207,9 +207,9 @@ impl Character {
         Some(bonus)
     }
 
-    pub fn get_defense_bonus(&self) -> i32 {
+    pub fn get_defense_bonus(&self, enemy_tags: &[NPCTag]) -> i32 {
         let mut bonus = 0;
-        
+
         // Bonus por armadura
         if let Some(armor) = &self.armor {
             if armor.equipment_type == EquipmentType::Armor(ArmorType::Light) {
@@ -224,29 +224,54 @@ impl Character {
             bonus += 1;
         }
 
+        // Bonus de clase y raza
+        if matches!(&self.class, Class::Dwarf) {
+            // Bonus contra criaturas grandes
+            if enemy_tags.iter().any(|tag| matches!(tag, NPCTag::Troll | NPCTag::Ogre | NPCTag::Giant)) {
+                bonus += 1;
+            }
+            // Bonus contra goblins
+            if enemy_tags.iter().any(|tag| tag == &NPCTag::Goblin) {
+                bonus += 1;
+            }
+        }
+
         bonus
     }
 
-    pub fn get_class_bonus(&self, enemies_outnumbered: bool, enemy_tag: Option<&str>) -> i32 {
+    pub fn get_class_bonus(&self, enemies_outnumbered: bool, enemy_tag: Option<&NPCTag>) -> i32 {
         let is_two_handed = if let Some(weapon) = &self.weapon {
             matches!(weapon.equipment_type, EquipmentType::Weapon(WeaponType::Heavy))
         } else {
             false
         };
 
+        let is_using_bow = if let Some(weapon) = &self.weapon {
+            matches!(weapon.equipment_type, EquipmentType::Bow)
+        } else {
+            false
+        };
+
         let mut bonus = match &self.class {
             Class::Fighter => self.level as i32,
-            Class::Cleric => (self.level as f32 / 2.0).floor() as i32,
+            Class::Cleric => if enemy_tag.map_or(false, |tag| tag == &NPCTag::Undead) {
+                self.level as i32
+            } else {
+                (self.level as f32 / 2.0).floor() as i32
+            },
             Class::Rogue => if enemies_outnumbered { self.level as i32 } else { 0 },
             Class::Wizard => 0,
             Class::Barbarian => self.level as i32,
             Class::Elf => if is_two_handed { 0 } else { self.level as i32 },
-            Class::Dwarf => self.level as i32,
+            Class::Dwarf => if is_using_bow { 0 } else { self.level as i32 },
             Class::Halfling => 0,
         };
 
         // Bonus adicional para Elfos contra orcos
-        if matches!(&self.class, Class::Elf) && enemy_tag.map_or(false, |tag| tag.contains("orc")) {
+        if matches!(&self.class, Class::Elf) && enemy_tag.map_or(false, |tag| tag == &NPCTag::Orc) {
+            bonus += 1;
+        }
+        if matches!(&self.class, Class::Dwarf) && enemy_tag.map_or(false, |tag| tag == &NPCTag::Goblin) {
             bonus += 1;
         }
 
