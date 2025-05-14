@@ -21,10 +21,6 @@ impl Game {
     fn new(player: Player) -> Self {
         Game { player }
     }
-
-    fn show_status(&self) {
-        println!("{}", self.player.execute_status());
-    }
 }
 
 fn main() {
@@ -35,7 +31,7 @@ fn main() {
     let mut characters = Vec::new();
     let mut initial_inventory = Vec::new();
     for i in 1..=4 {
-        println!("\nAventurero {}:", i);
+        println!("Aventurero {}:", i);
         println!("1. Guerrero");
         println!("2. Clérigo");
         println!("3. Pícaro");
@@ -168,15 +164,15 @@ fn main() {
         if input.is_empty() {
             continue;
         }
+        
+        if input == "salir" {
+            break;
+        }
 
         let command = parse_command(&input);
         let response = execute_command(&mut game.player, command);
         if !response.is_empty() {
             println!("{}", response);
-        }
-
-        if input == "salir" {
-            break;
         }
     }
 }

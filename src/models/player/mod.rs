@@ -7,6 +7,56 @@ use std::io::{self, Write};
 
 use super::enemy;
 
+pub trait InputReader {
+    fn read_line(&mut self) -> String;
+}
+
+pub struct StdInputReader;
+
+impl InputReader for StdInputReader {
+    fn read_line(&mut self) -> String {
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).unwrap();
+        input
+    }
+}
+
+pub struct TestInputReader {
+    input: String,
+}
+
+impl TestInputReader {
+    pub fn new(input: String) -> Self {
+        Self { input }
+    }
+}
+
+impl InputReader for TestInputReader {
+    fn read_line(&mut self) -> String {
+        self.input.clone()
+    }
+}
+
+pub trait DiceRoller {
+    fn roll_1d6(&mut self) -> u8;
+}
+
+pub struct RealDiceRoller;
+impl DiceRoller for RealDiceRoller {
+    fn roll_1d6(&mut self) -> u8 {
+        rand::thread_rng().gen_range(1..=6)
+    }
+}
+
+pub struct MockDiceRoller {
+    pub value: u8,
+}
+impl DiceRoller for MockDiceRoller {
+    fn roll_1d6(&mut self) -> u8 {
+        self.value
+    }
+}
+
 #[derive(Debug)]
 pub struct Player {
     characters: Vec<Character>,
@@ -19,6 +69,8 @@ pub struct Player {
     pub discovered_locations: HashSet<String>, // Tags de localizaciones descubiertas
     pub defeated_npcs: HashSet<String>,        // Tags de NPCs derrotados
     pub current_combat_enemies: Option<u8>,    // Número de enemigos restantes en el combate actual
+    pub encounters_won: u32,                   // Número de encuentros superados (excluyendo Vermin)
+    pub leveled_up_last_time: Option<String>,  // Nombre del personaje que subió de nivel por última vez
 }
 
 impl Player {
@@ -34,6 +86,8 @@ impl Player {
             discovered_locations: HashSet::new(),
             defeated_npcs: HashSet::new(),
             current_combat_enemies: None,
+            encounters_won: 9,
+            leveled_up_last_time: None,
         }
     }
 
@@ -144,7 +198,7 @@ impl Player {
                                             }
                                         }
                                     }
-                                    
+
                                     // Verificar si el pasaje requiere una llave
                                     if passage.requires_key {
                                         if let Some(key_tag) = &passage.key_tag {
@@ -153,7 +207,7 @@ impl Player {
                                             }
                                         }
                                     }
-                                    
+
                                     // Verificar si el pasaje tiene un acertijo
                                     if passage.has_riddle {
                                         if let (Some(riddle), Some(answer)) = (&passage.riddle, &passage.riddle_answer) {
@@ -179,7 +233,7 @@ impl Player {
                                         }
                                     }
                                 }
-                                
+
                                 // Si llegamos aquí, el jugador puede pasar
                                 self.set_current_location(Some(tag.to_string()));
                                 return self.execute_look();
@@ -342,22 +396,21 @@ impl Player {
         }
     }
 
-    pub fn execute_status(&self) -> String {
-        let mut response = String::new();
-        response.push_str("Estado del grupo:\n");
+    pub fn execute_status(&self) {
+        println!("Estado del grupo:");
 
         for character in &self.characters {
-            response.push_str(&format!(
+            println!(
                 "{} ({}, nivel {}): {} PV/{} PV\n",
                 character.name,
                 character.class,
                 character.level,
                 character.hit_points,
                 character.max_hit_points
-            ));
+            );
         }
 
-        response
+        println!("Encuentros superados: {}", self.encounters_won);
     }
 
     pub fn has_item(&self, tag: &str) -> bool {
@@ -469,13 +522,10 @@ impl Player {
         response
     }
 
-    pub fn execute_attack(&mut self, target_tag: &str) -> String {
-        let mut response = String::new();
+    pub fn execute_attack(&mut self, target_tag: &str) {        
 
-        // Si el comando es "continuar", no mostrar el mensaje de inicio
-        if target_tag != "continuar" {
-            response.push_str("¡Comienza el combate!\n");
-        }
+        let mut round = 0;
+        let mut total_enemies_defeated = 0;
 
         // Obtener NPCs hostiles en la ubicación actual
         if let Some(location_tag) = &self.current_location {
@@ -487,185 +537,289 @@ impl Player {
 
                 if hostile_npcs.is_empty() {
                     self.current_combat_enemies = None;
-                    return "No hay enemigos para atacar aquí.".to_string();
+                    println!("No hay enemigos para atacar aquí.");
+                    return;
                 }
 
-                // Usar el número de enemigos guardado o calcular el total inicial
-                let mut enemies_remaining = if let Some(remaining) = self.current_combat_enemies {
-                    remaining
-                } else {
-                    let total_enemies: u8 = hostile_npcs.iter().map(|npc| npc.count).sum();
-                    total_enemies
-                };
-
-                // Si es una acción de combate (1-4), procesar la acción
-                if target_tag == "1" {
-                    // Continuar el combate
-                    self.current_combat_enemies = Some(enemies_remaining);
-                    return self.execute_attack("continuar");
-                } else if target_tag == "2" {
+                // Si es una acción de combate (2-4), procesar la acción
+                if target_tag == "2" {
                     // Huir
                     self.current_combat_enemies = None;
-                    return "Has huido del combate.".to_string();
+                    println!("Has huido del combate.");
+                    return;
                 } else if target_tag == "3" {
-                    return "Función de usar objetos aún no implementada.".to_string();
+                    println!("Función de usar objetos aún no implementada.");
+                    return;
                 } else if target_tag == "4" {
                     return self.execute_status();
                 }
 
-                // Rondas de combate
-                while enemies_remaining > 0 {
-                    // Fase de ataque de los aventureros
-                    response.push_str("\nAtaque de los aventureros:\n");
-                    let mut enemies_defeated = 0;
-                    let enemies_outnumbered = self.characters.len() > enemies_remaining as usize;
+                // Obtener el número de enemigos restantes
+                let mut enemies_remaining = if target_tag == "continuar" || target_tag == "1" {
+                    if let Some(remaining) = self.current_combat_enemies {
+                        remaining
+                    } else {
+                        println!("No hay un combate en curso.");
+                        return;
+                    }
+                } else {
+                    hostile_npcs.iter().map(|npc| npc.count).sum()
+                };
 
-                    for character in &mut self.characters {
-                        if enemies_remaining == 0 {
-                            break;
-                        }
+                // Bucle de combate que continúa hasta que no queden enemigos
+                loop {
+                    // Ejecutar una ronda de combate
+                    let remaining = self.execute_combat_round(&hostile_npcs[0], enemies_remaining, &mut round);
 
-                        // Verificar si el personaje tiene un arma equipada y calcular el bonus de ataque
-                        match character.get_equipment_attack_bonus() {
-                            None => {
-                                response.push_str(&format!(
-                                    "{} ({}) no puede atacar porque no tiene un arma equipada.\n",
-                                    character.name, character.class
-                                ));
-                                continue;
-                            },
-                            Some(equipment_bonus) => {
-                                let attack_roll = rand::thread_rng().gen_range(1..=6);
-                                let npc = &hostile_npcs[0]; // Todos los enemigos son del mismo tipo
-                                let class_bonus = character.get_class_attack_bonus(enemies_outnumbered, &npc.tags);
-                                let attack_total = attack_roll + class_bonus + equipment_bonus;
+                    // Calcular cuántos enemigos fueron derrotados en esta ronda
+                    let enemies_defeated_this_round = enemies_remaining - remaining;
+                    total_enemies_defeated += enemies_defeated_this_round;
 
-                                let bonus_message = if npc.has_tag(&NPCTag::Orc) && matches!(character.class, Class::Elf) {
-                                    format!("{} + 1 (vs orcos)", character.level)
-                                } else {
-                                    character.level.to_string()
-                                };
+                    println!("Enemigos derrotados en esta ronda: {}", enemies_defeated_this_round);
+                    println!("Total de enemigos derrotados: {}", total_enemies_defeated);
 
-                                response.push_str(&format!(
-                                    "{} (nivel {}) tira {} + {} + {} = {}\n",
-                                    character.name, character.level, attack_roll, bonus_message, equipment_bonus, attack_total
-                                ));
+                    // Actualizar el número de enemigos restantes
+                    enemies_remaining = remaining;
 
-                                if attack_total >= npc.level as i32 {
-                                    enemies_defeated += 1;
-                                    enemies_remaining -= 1;
-                                    response.push_str(&format!(
-                                        "¡{} derrota a un {}!\n",
-                                        character.name, npc.base.tag
-                                    ));
-                                } else {
-                                    response.push_str(&format!(
-                                        "{} falla el ataque contra el {}.\n",
-                                        character.name, npc.base.tag
-                                    ));
-                                }
-                            }
-                        }
+                    // Si no quedan enemigos, terminar el combate
+                    if remaining == 0 {
+                        break;
                     }
 
-                    // Solo los enemigos que quedan pueden contraatacar
-                    if enemies_remaining > 0 {
-                        response.push_str("\nContraataque de los enemigos:\n");
-                        let enemies_that_can_attack = enemies_remaining as usize;
-                        let num_characters = self.characters.len();
+                    // Si quedan enemigos, mostrar opciones y guardar el estado
+                    self.current_combat_enemies = Some(remaining);
+                    println!("¿Qué quieres hacer?");
+                    println!("1. Continuar el combate");
+                    println!("2. Huir");
+                    println!("3. Usar un objeto");
+                    println!("4. Ver estado detallado");
 
-                        // Calcular cuántos enemigos adicionales hay después de asignar uno a cada personaje
-                        let extra_enemies = if enemies_that_can_attack > num_characters {
-                            enemies_that_can_attack - num_characters
-                        } else {
-                            0
-                        };
-
-                        // Para cada personaje
-                        for (i, character) in self.characters.iter_mut().enumerate() {
-                            // Calcular cuántos enemigos atacan a este personaje
-                            let enemies_for_this_char = if i < extra_enemies {
-                                2 // Este personaje enfrenta a 2 enemigos
-                            } else if i < enemies_that_can_attack {
-                                1 // Este personaje enfrenta a 1 enemigo
-                            } else {
-                                0 // Este personaje no enfrenta enemigos
-                            };
-
-                            // Procesar los ataques de los enemigos asignados a este personaje
-                            for _ in 0..enemies_for_this_char {
-                                let npc = &hostile_npcs[0]; // Todos los enemigos son del mismo tipo
-                                let defense_roll = rand::thread_rng().gen_range(1..=6);
-                                let equipment_defense_bonus = character.get_equipment_defense_bonus();
-                                let class_defense_bonus = character.get_class_defense_bonus(&npc.tags);
-                                let defense_total = defense_roll + equipment_defense_bonus + class_defense_bonus;
-
-                                response.push_str(&format!(
-                                    "{} se defiende con {} + {} + {} = {} contra el {}.\n",
-                                    character.name, defense_roll, equipment_defense_bonus, class_defense_bonus, defense_total, npc.base.tag
-                                ));
-
-                                if defense_roll == 1 {
-                                    // Fallo crítico
-                                    character.hit_points -= 1;
-                                    response.push_str(&format!(
-                                        "¡Fallo crítico! {} recibe 1 punto de daño.\n",
-                                        character.name
-                                    ));
-                                } else if defense_total > npc.level as i32 || defense_roll == 6 {
-                                    // Defensa exitosa
-                                    response.push_str(&format!(
-                                        "{} esquiva el ataque del {}.\n",
-                                        character.name, npc.base.tag
-                                    ));
-                                } else {
-                                    // Ataque exitoso
-                                    character.hit_points -= 1;
-                                    response.push_str(&format!(
-                                        "{} recibe 1 punto de daño del {}.\n",
-                                        character.name, npc.base.tag
-                                    ));
-                                }
+                    // Esperar la entrada del usuario
+                    let mut input = String::new();
+                    match std::io::stdin().read_line(&mut input) {
+                        Ok(_) => {
+                            let choice = input.trim();
+                            if choice == "2" {
+                                // Huir
+                                self.current_combat_enemies = None;
+                                println!("Has huido del combate.");
+                                return;
+                            } else if choice == "3" {
+                                println!("Función de usar objetos aún no implementada.");
+                                // Continuar el combate después de usar un objeto
+                            } else if choice == "4" {
+                                self.execute_status();
+                                // Continuar el combate después de ver el estado
+                            } else if choice != "1" {
+                                println!("Opción no válida. Continuando el combate...");
                             }
                         }
-
-                        // Guardar el número de enemigos restantes
-                        self.current_combat_enemies = Some(enemies_remaining);
-
-                        // Mostrar el estado actual del grupo
-                        response.push_str("\nEstado del grupo después del contraataque:\n");
-                        for character in &self.characters {
-                            response.push_str(&format!(
-                                "{} ({}, nivel {}): {} PV/{} PV\n",
-                                character.name,
-                                character.class,
-                                character.level,
-                                character.hit_points,
-                                character.max_hit_points
-                            ));
+                        Err(_) => {
+                            println!("Error al leer la entrada. Continuando el combate...");
                         }
-
-                        // Interrumpir el combate para que el jugador decida qué hacer
-                        response.push_str("\n¿Qué quieres hacer?\n");
-                        response.push_str("1. Continuar el combate\n");
-                        response.push_str("2. Huir\n");
-                        response.push_str("3. Usar un objeto\n");
-                        response.push_str("4. Ver estado detallado\n");
-                        return response;
                     }
                 }
 
-                // Combate terminado, limpiar el estado y marcar enemigos como derrotados
+                // Combate terminado exitosamente
                 self.current_combat_enemies = None;
                 for npc in hostile_npcs {
                     self.defeated_npcs.insert(npc.base.tag.clone());
+                    if !npc.has_tag(&NPCTag::Vermin) {
+                        self.encounters_won += 1;
+                    }
                 }
 
-                response.push_str("\n¡Combate terminado!\n");
-                return response;
+                println!("¡Combate terminado! Has derrotado a {} enemigos en total.", total_enemies_defeated);
+
+                // Verificar si se ha alcanzado el umbral de 10 encuentros
+                if self.encounters_won >= 10 {
+                    let mut input_reader = StdInputReader;
+                    self.handle_level_up(&mut input_reader, &mut RealDiceRoller);
+                }
             }
         }
-        "No estás en ninguna ubicación.".to_string()
+    }
+
+    fn execute_combat_round(&mut self, npc: &NPC, enemies_remaining: u8, round: &mut u8) -> u8 {
+        *round += 1;
+        if round == &1 {
+            println!("¡Comienza el combate!");
+        }
+
+        // Fase de ataque de los aventureros
+        println!("Ataque de los aventureros:");
+        let mut enemies_defeated = 0;
+        let enemies_outnumbered = self.characters.len() > enemies_remaining as usize;
+
+        for character in &mut self.characters {
+            if enemies_remaining == 0 || enemies_defeated == enemies_remaining {
+                break;
+            }
+
+            match character.get_equipment_attack_bonus() {
+                None => {
+                    println!("{} ({}) no puede atacar porque no tiene un arma equipada.\n",
+                             character.name, character.class);
+                    continue;
+                },
+                Some(equipment_bonus) => {
+                    let attack_roll = rand::thread_rng().gen_range(1..=6);
+                    let class_bonus = character.get_class_attack_bonus(enemies_outnumbered, &npc.tags);                    
+                    let attack_total = attack_roll + class_bonus + equipment_bonus as i32;
+
+                    println!("{} (nivel {}) tira {} + {} + {} = {}\n",
+                             character.name, character.level, attack_roll, class_bonus, equipment_bonus, attack_total);
+
+                    if attack_total >= npc.level as i32 {
+                        enemies_defeated += 1;
+                        println!("¡{} derrota a un {}!\n",
+                                 character.name, npc.base.tag);
+                    } else {
+                        println!(
+                            "{} falla el ataque contra el {}.\n",
+                            character.name, npc.base.tag
+                        );
+                    }
+                }
+            }
+        }
+
+        let remaining_after_attack = enemies_remaining - enemies_defeated;
+
+        // Solo los enemigos que quedan pueden contraatacar
+        if remaining_after_attack > 0 {
+            println!("Contraataque de los enemigos:");
+            let enemies_that_can_attack = remaining_after_attack as usize;
+            let num_characters = self.characters.len();
+            let extra_enemies = if enemies_that_can_attack > num_characters {
+                enemies_that_can_attack - num_characters
+            } else {
+                0
+            };
+
+            for (i, character) in self.characters.iter_mut().enumerate() {
+                let enemies_for_this_char = if i < extra_enemies {
+                    2
+                } else if i < enemies_that_can_attack {
+                    1
+                } else {
+                    0
+                };
+
+                for _ in 0..enemies_for_this_char {
+                    let defense_roll = rand::thread_rng().gen_range(1..=6);
+                    let equipment_defense_bonus = character.get_equipment_defense_bonus();
+                    let class_defense_bonus = character.get_class_defense_bonus(&npc.tags);
+                    let defense_total = defense_roll + equipment_defense_bonus + class_defense_bonus;
+
+                    println!(
+                        "{} se defiende con {} + {} + {} = {} contra el {}.\n",
+                        character.name, defense_roll, equipment_defense_bonus, class_defense_bonus, defense_total, npc.base.tag
+                    );
+
+                    if defense_roll == 1 {
+                        character.hit_points -= 1;
+                        println!(
+                            "¡Fallo crítico! {} recibe 1 punto de daño.\n",
+                            character.name
+                        );
+                    } else if defense_total > npc.level as i32 || defense_roll == 6 {
+                        println!(
+                            "{} esquiva el ataque del {}.\n",
+                            character.name, npc.base.tag
+                        );
+                    } else {
+                        character.hit_points -= 1;
+                        println!(
+                            "{} recibe 1 punto de daño del {}.\n",
+                            character.name, npc.base.tag
+                        );
+                    }
+                }
+            }
+
+            // Mostrar el estado actual del grupo
+            println!("Estado del grupo después del contraataque:");
+            for character in &self.characters {
+                println!(
+                    "{} ({}, nivel {}): {} PV/{} PV\n",
+                    character.name,
+                    character.class,
+                    character.level,
+                    character.hit_points,
+                    character.max_hit_points
+                );
+            }
+        }
+
+        remaining_after_attack
+    }
+
+    fn handle_level_up(&mut self, input_reader: &mut dyn InputReader, dice: &mut dyn DiceRoller) {
+        println!("¡Has alcanzado 10 encuentros superados! Debes subir de nivel a un personaje para continuar.");
+        loop {
+            println!("Personajes disponibles para subir de nivel:");
+            let available_characters: Vec<_> = self.characters.iter()
+                .filter(|c| {
+                    if let Some(last_leveled) = self.leveled_up_last_time.as_ref() {
+                        c.name != *last_leveled
+                    } else {
+                        true
+                    }
+                })
+                .collect();
+
+            if available_characters.is_empty() {
+                println!("No hay personajes disponibles para subir de nivel.");
+                self.encounters_won = 0;
+                break;
+            }
+
+            for character in &available_characters {
+                println!("- {} (nivel {})", character.name, character.level);
+            }
+
+            println!("Escribe el nombre del personaje que quieres subir de nivel:");
+            let input = input_reader.read_line().trim().to_string();
+
+            // Verificar si el personaje ya subió de nivel y si los demás están en nivel 5
+            let can_level_up = if let Some(last_leveled) = self.leveled_up_last_time.as_ref() {
+                if input.to_lowercase() == last_leveled.to_lowercase() {
+                    // Verificar si todos los demás personajes están en nivel 5
+                    self.characters.iter()
+                        .filter(|other| other.name.to_lowercase() != input.to_lowercase())
+                        .all(|other| other.level >= 5)
+                } else {
+                    true
+                }
+            } else {
+                true
+            };
+
+            if !can_level_up {
+                println!("Este personaje ya ha subido de nivel anteriormente. Por favor, elige otro personaje.");
+                continue;
+            }
+
+            if let Some(character) = self.characters.iter_mut()
+                .find(|c| c.name.to_lowercase() == input.to_lowercase()) {
+                // evaluate if the character levels up
+                let level_roll = dice.roll_1d6();
+                if level_roll > character.level as u8 {
+                    character.level += 1;
+                    character.max_hit_points += 1;
+                    character.hit_points = character.max_hit_points;
+                    self.leveled_up_last_time = Some(character.name.clone());
+                    println!("¡{} ha subido al nivel {}!", character.name, character.level);
+                } else {
+                    println!("¡{} no ha subido de nivel! ¡Más suerte la próxima vez!", character.name);
+                }
+                self.encounters_won = 0;
+                break;
+            } else {
+                println!("No se encontró ningún personaje con ese nombre. Inténtalo de nuevo.");
+            }
+        }
     }
 
     pub fn has_hostile_npcs(&self) -> bool {
@@ -806,5 +960,69 @@ impl Player {
         } else {
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::character::Class;
+
+    fn create_test_player() -> Player {
+        let mut characters = vec![
+            Character::new(Class::Fighter),
+            Character::new(Class::Wizard),
+            Character::new(Class::Rogue),
+        ];
+        
+        // Establecer nombres para los personajes
+        characters[0].set_name("Aragorn".to_string());
+        characters[1].set_name("Gandalf".to_string());
+        characters[2].set_name("Legolas".to_string());
+        
+        Player::new(characters)
+    }
+
+    #[test]
+    fn test_handle_level_up_basic() {
+        let mut player = create_test_player();
+        player.encounters_won = 10;
+        let mut input_reader = TestInputReader::new("Aragorn\n".to_string());
+        let mut dice = MockDiceRoller { value: 6 };
+        player.handle_level_up(&mut input_reader, &mut dice);
+        let aragorn = player.characters.iter().find(|c| c.name == "Aragorn").unwrap();
+        assert_eq!(aragorn.level, 2);
+        assert_eq!(player.leveled_up_last_time, Some("Aragorn".to_string()));
+    }
+
+    #[test]
+    fn test_handle_level_up_with_max_level_others() {
+        let mut player = create_test_player();
+        player.encounters_won = 10;
+        for character in &mut player.characters {
+            if character.name != "Aragorn" {
+                character.level = 5;
+            }
+        }
+        player.leveled_up_last_time = Some("Aragorn".to_string());
+        let mut input_reader = TestInputReader::new("Aragorn\n".to_string());
+        let mut dice = MockDiceRoller { value: 6 };
+        player.handle_level_up(&mut input_reader, &mut dice);
+        let aragorn = player.characters.iter().find(|c| c.name == "Aragorn").unwrap();
+        assert_eq!(aragorn.level, 2);
+    }
+
+    #[test]
+    fn test_handle_level_up_without_max_level_others() {
+        let mut player = create_test_player();
+        player.encounters_won = 10;
+        player.leveled_up_last_time = Some("Aragorn".to_string());
+        let mut input_reader = TestInputReader::new("Gandalf\n".to_string());
+        let mut dice = MockDiceRoller { value: 6 };
+        player.handle_level_up(&mut input_reader, &mut dice);
+        let gandalf = player.characters.iter().find(|c| c.name == "Gandalf").unwrap();
+        assert_eq!(gandalf.level, 2);
+        let aragorn = player.characters.iter().find(|c| c.name == "Aragorn").unwrap();
+        assert_eq!(aragorn.level, 1);
     }
 }

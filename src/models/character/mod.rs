@@ -135,7 +135,7 @@ pub struct Character {
     pub shield: Option<Equipment>,
     pub armor: Option<Equipment>,
     pub bow: Option<Equipment>,
-    pub traits: HashSet<CharacterTrait>,
+    pub traits: HashSet<CharacterTrait>
 }
 
 impl Character {
@@ -152,7 +152,7 @@ impl Character {
             shield: None,
             armor: None,
             bow: None,
-            traits,
+            traits
         }
     }
 

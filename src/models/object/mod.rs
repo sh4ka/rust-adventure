@@ -102,7 +102,9 @@ pub enum NPCTag {
     Bandit,
     Troll,
     Ogre,
-    Giant,    
+    Giant,
+    Vermin,    // Nuevo tipo de enemigo: alimañas/plagas
+    
     // Alineamientos
     Friendly,
     Neutral,
@@ -310,8 +312,8 @@ lazy_static! {
             .with_long_description("Un corredor estrecho y oscuro que termina en una puerta de piedra con símbolos grabados. Las paredes están húmedas y el suelo es irregular. La única iluminación proviene de la grieta por la que entraste, creando sombras que bailan en las paredes.");
         let mut puerta = Location::new("puerta", "una puerta de piedra", true)
             .with_long_description("Una pesada puerta de piedra con símbolos grabados. Los símbolos parecen contar una historia antigua, pero están parcialmente erosionados. La puerta parece estar sellada, pero hay un mecanismo que sugiere que puede ser abierta de alguna manera.");
-        let mut camara = Location::new("camara", "una cámara secreta", true)
-            .with_long_description("Una cámara secreta con paredes de piedra pulida. La luz entra por pequeñas aberturas en el techo, iluminando el polvo que flota en el aire. En el centro hay un pedestal antiguo con símbolos grabados que parecen tener un significado especial.");
+        let mut camara = Location::new("camara", "una cámara abandonada", true)
+            .with_long_description("Esta habtación parece haberse usado tiempo atrás como improvisado dormitorio y cocina. Hay una modesta mesa carcomida en una esquina. Una gruesa capa de polvo lo cubre todo.");
         let mut laboratorio = Location::new("laboratorio", "un laboratorio abandonado", true)
             .with_long_description("Un laboratorio abandonado que parece haber sido usado por alquimistas o magos. Mesas de trabajo cubiertas de polvo y estantes con frascos de cristal se alinean en las paredes. Algunos frascos aún contienen líquidos de colores extraños, y hay notas y diagramas esparcidos por las mesas.");
         let mut biblioteca = Location::new("biblioteca", "una biblioteca antigua", true)
@@ -328,6 +330,8 @@ lazy_static! {
         // Añadir grupos de NPCs a sus ubicaciones
         bosque.content.add_npc("goblins");
         ruinas.content.add_npc("orcos");
+        laboratorio.content.add_npc("esqueletos");
+        camara.content.add_npc("ratas");
         // Añadir conexiones
         pueblo.add_connection("campo");
 
@@ -428,22 +432,27 @@ lazy_static! {
         orcos.add_tag(NPCTag::Orc);
         orcos.add_tag(NPCTag::Monster);
         m.insert("orcos".to_string(), orcos);
+
+        let mut ratas = NPC::new("ratas", "un grupo de ratas hambrientas", "camara", true)
+            .with_attitude(Attitude::Hostile)
+            .with_level(1)
+            .with_count(10);
+        ratas.add_tag(NPCTag::Vermin);
+        m.insert("ratas".to_string(), ratas);
+
+        let mut esqueletos = NPC::new("esqueletos", "un grupo de esqueletos", "laboratorio", true)
+            .with_attitude(Attitude::Hostile)
+            .with_level(3)
+            .with_count(6);
+        esqueletos.add_tag(NPCTag::Undead);
+        esqueletos.add_tag(NPCTag::Monster);
+        m.insert("esqueletos".to_string(), esqueletos);
         
         m
     };
 
     pub static ref PASSAGES: HashMap<String, Passage> = {
         let mut m = HashMap::new();
-        
-        // Pasajes principales
-        m.insert("campo_pueblo".to_string(), Passage::new("campo_pueblo", "un camino que lleva al pueblo", "campo", "pueblo", true));
-        m.insert("pueblo_campo".to_string(), Passage::new("pueblo_campo", "un camino que lleva a los campos", "pueblo", "campo", true));
-        m.insert("campo_cueva".to_string(), Passage::new("campo_cueva", "una entrada a la cueva", "campo", "cueva", true));
-        m.insert("cueva_campo".to_string(), Passage::new("cueva_campo", "la salida de la cueva", "cueva", "campo", true));
-        m.insert("cueva_bosque".to_string(), Passage::new("cueva_bosque", "un sendero que lleva al bosque", "cueva", "bosque", true));
-        m.insert("bosque_cueva".to_string(), Passage::new("bosque_cueva", "un sendero que lleva a la cueva", "bosque", "cueva", true));
-        m.insert("bosque_ruinas".to_string(), Passage::new("bosque_ruinas", "un camino que lleva a las ruinas", "bosque", "ruinas", true));
-        m.insert("ruinas_bosque".to_string(), Passage::new("ruinas_bosque", "un camino que lleva al bosque", "ruinas", "bosque", true));
 
         // Pasajes de la cueva
         m.insert("grieta".to_string(), Passage::new("grieta", "una grieta estrecha en la pared trasera de la cueva. Parece que se puede atravesar si encuentras una antorcha.", "cueva", "grieta", false));

@@ -44,7 +44,7 @@ pub fn execute_command(player: &mut Player, command: Command) -> String {
         if let Command::Attack(target) = &command {
             if let Ok(choice) = target.parse::<u32>() {
                 if choice >= 1 && choice <= 4 {
-                    return player.execute_attack(&target);
+                    player.execute_attack(&target);
                 }
             }
             // Si estamos en combate, ignorar otros comandos excepto los de combate
@@ -80,8 +80,14 @@ pub fn execute_command(player: &mut Player, command: Command) -> String {
                 "No encuentras nada especial.".to_string()
             }
         },
-        Command::Status => player.execute_status(),
-        Command::Attack(target) => player.execute_attack(&target),
+        Command::Status => {
+            player.execute_status();
+            "".to_string()
+        },
+        Command::Attack(target) => { 
+            player.execute_attack(&target);
+            "".to_string()
+        },
         Command::Talk => {
             println!("¿Con quién quieres hablar?");
             "".to_string()
