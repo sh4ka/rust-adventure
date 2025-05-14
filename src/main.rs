@@ -12,6 +12,7 @@ use crate::models::character::{Character, Class, EquipmentType, WeaponType, Armo
 use crate::models::object::Item;
 use crate::models::enemy::{Enemy, get_enemy, get_enemies_by_difficulty, get_enemies_by_level_range, get_enemies_by_location};
 use crate::parsexec::{parse_command, execute_command};
+use std::collections::HashSet;
 
 struct Game {
     player: Player
@@ -138,12 +139,25 @@ fn main() {
             }
         };
 
-        print!("Escribe el nombre de tu personaje: ");
-        std::io::stdout().flush().unwrap();
         let mut name = String::new();
-        std::io::stdin().read_line(&mut name).unwrap();
-        character.set_name(name.trim().to_string());
-
+        loop {
+            print!("Escribe el nombre de tu personaje: ");
+            std::io::stdout().flush().unwrap();
+            name.clear();
+            std::io::stdin().read_line(&mut name).unwrap();
+            let name_trimmed = name.trim().to_string();
+            let existing_names: HashSet<String> = characters.iter().map(|c: &Character| c.name.clone()).collect();
+            if name_trimmed.is_empty() {
+                println!("El nombre no puede estar vacío.");
+                continue;
+            }
+            if existing_names.contains(&name_trimmed) {
+                println!("Ya existe un personaje con ese nombre. Elige otro.");
+                continue;
+            }
+            character.set_name(name_trimmed, &existing_names);
+            break;
+        }
         characters.push(character);
         initial_inventory.extend(items);
     }

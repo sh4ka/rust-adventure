@@ -156,7 +156,15 @@ impl Character {
         }
     }
 
-    pub fn set_name(&mut self, name: String) {
+    pub fn set_name(&mut self, name: String, existing_names: &HashSet<String>) {
+        // Verificar que el nombre no esté vacío
+        if name.trim().is_empty() {
+            panic!("El nombre no puede estar vacío");
+        }
+        // Verificar que el nombre no esté duplicado
+        if existing_names.contains(&name) {
+            panic!("Ya existe un personaje con el nombre: {}", name);
+        }
         self.name = name;
     }
 
@@ -324,19 +332,45 @@ impl Equipment {
     }
 }
 
-pub fn parse_new_character(input: String) -> Result<Character, String> {
-    let input = input.trim().to_lowercase();
-    let mut words = input.split_whitespace();
+pub fn parse_new_character(input: String, existing_names: &HashSet<String>) -> Result<Character, String> {
+    let parts: Vec<&str> = input.split_whitespace().collect();
+    if parts.len() != 2 {
+        return Err("Formato incorrecto. Uso: nuevo <nombre> <clase>".to_string());
+    }
 
-    match words.next() {
-        Some("guerrero") => Ok(Character::new(Class::Fighter)),
-        Some("clerigo") | Some("clérigo") => Ok(Character::new(Class::Cleric)),
-        Some("picaro") | Some("pícaro") => Ok(Character::new(Class::Rogue)),
-        Some("mago") => Ok(Character::new(Class::Wizard)),
-        Some("barbaro") | Some("bárbaro") => Ok(Character::new(Class::Barbarian)),
-        Some("elfo") => Ok(Character::new(Class::Elf)),
-        Some("enano") => Ok(Character::new(Class::Dwarf)),
-        Some("mediano") | Some("halfling") => Ok(Character::new(Class::Halfling)),
-        _ => Err("Clase incorrecta.".to_string()),
+    let name = parts[0].to_string();
+    let class_str = parts[1].to_uppercase();
+
+    let class = match class_str.as_str() {
+        "GUERRERO" => Class::Fighter,
+        "MAGO" => Class::Wizard,
+        "PICARO" => Class::Rogue,
+        _ => return Err("Clase no válida. Clases disponibles: GUERRERO, MAGO, PICARO".to_string()),
+    };
+
+    let mut character = Character::new(class);
+    character.set_name(name, existing_names);
+    Ok(character)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "Ya existe un personaje con el nombre: Gandalf")]
+    fn test_duplicate_character_name() {
+        let mut character = Character::new(Class::Wizard);
+        let mut existing_names = HashSet::new();
+        existing_names.insert("Gandalf".to_string());
+        character.set_name("Gandalf".to_string(), &existing_names);
+    }
+
+    #[test]
+    #[should_panic(expected = "El nombre no puede estar vacío")]
+    fn test_empty_character_name() {
+        let mut character = Character::new(Class::Wizard);
+        let existing_names = HashSet::new();
+        character.set_name("".to_string(), &existing_names);
     }
 }

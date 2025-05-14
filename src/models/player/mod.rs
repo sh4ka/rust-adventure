@@ -1,6 +1,6 @@
 use crate::Character;
 use crate::models::object::{Location, Item, NPC, Passage, find_location, find_npc, find_item_in_location, find_passage, find_item, PASSAGES, Attitude, NPCTag};
-use crate::models::character::{Equipment, EquipmentType, WeaponType, ArmorType, Class};
+use crate::models::character::{Equipment, EquipmentType, WeaponType, ArmorType, Class, parse_new_character};
 use std::collections::{HashMap, HashSet};
 use rand::Rng;
 use std::io::{self, Write};
@@ -75,6 +75,14 @@ pub struct Player {
 
 impl Player {
     pub fn new(characters: Vec<Character>) -> Self {
+        // Verificar nombres duplicados
+        let mut names = HashSet::new();
+        for character in &characters {
+            if !names.insert(character.name.clone()) {
+                panic!("No pueden haber personajes con el mismo nombre: {}", character.name);
+            }
+        }
+
         Self { 
             characters, 
             current_location: None,
@@ -86,7 +94,7 @@ impl Player {
             discovered_locations: HashSet::new(),
             defeated_npcs: HashSet::new(),
             current_combat_enemies: None,
-            encounters_won: 9,
+            encounters_won: 0,
             leveled_up_last_time: None,
         }
     }
@@ -961,6 +969,24 @@ impl Player {
             false
         }
     }
+
+    pub fn execute_new(&mut self, input: &str) -> String {
+        if self.characters.len() >= 3 {
+            return "Ya tienes el máximo de personajes permitidos (3).".to_string();
+        }
+
+        let existing_names: HashSet<String> = self.characters.iter()
+            .map(|c| c.name.clone())
+            .collect();
+
+        match parse_new_character(input.to_string(), &existing_names) {
+            Ok(character) => {
+                self.characters.push(character);
+                format!("¡Has creado un nuevo personaje! Ahora tienes {} personajes.", self.characters.len())
+            },
+            Err(e) => e
+        }
+    }
 }
 
 #[cfg(test)]
@@ -976,9 +1002,12 @@ mod tests {
         ];
         
         // Establecer nombres para los personajes
-        characters[0].set_name("Aragorn".to_string());
-        characters[1].set_name("Gandalf".to_string());
-        characters[2].set_name("Legolas".to_string());
+        let mut existing_names = HashSet::new();
+        characters[0].set_name("Aragorn".to_string(), &existing_names);
+        existing_names.insert("Aragorn".to_string());
+        characters[1].set_name("Gandalf".to_string(), &existing_names);
+        existing_names.insert("Gandalf".to_string());
+        characters[2].set_name("Legolas".to_string(), &existing_names);
         
         Player::new(characters)
     }
@@ -1024,5 +1053,24 @@ mod tests {
         assert_eq!(gandalf.level, 2);
         let aragorn = player.characters.iter().find(|c| c.name == "Aragorn").unwrap();
         assert_eq!(aragorn.level, 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "Ya existe un personaje con el nombre: Gandalf")]
+    fn test_duplicate_character_names() {
+        let mut characters = vec![
+            Character::new(Class::Fighter),
+            Character::new(Class::Wizard),
+            Character::new(Class::Rogue),
+        ];
+        
+        // Establecer nombres duplicados
+        let mut existing_names = HashSet::new();
+        characters[0].set_name("Gandalf".to_string(), &existing_names);
+        existing_names.insert("Gandalf".to_string());
+        characters[1].set_name("Gandalf".to_string(), &existing_names);
+        characters[2].set_name("Legolas".to_string(), &existing_names);
+        
+        Player::new(characters);
     }
 }
