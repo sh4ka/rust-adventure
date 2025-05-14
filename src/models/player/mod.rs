@@ -104,7 +104,11 @@ impl Player {
                         response.push_str(&format!("- {}{}\n", npc.base.description, attitude));
                     }
                 }
-                
+
+                // Mostrar las ubicaciones disponibles a las que el jugador puede ir
+                response.push_str("\nPuedes ir a:\n");
+                response.push_str(&self.show_available_locations());
+
                 return response;
             }
         }
@@ -124,11 +128,23 @@ impl Player {
                         // Verificar si la ubicación destino está conectada
                         if location.connections.contains(&tag.to_string()) {
                             if let Some(destination) = find_location(tag) {
-                                // Verificar si hay un pasaje que conecte las ubicaciones
-                                if let Some(passage) = PASSAGES.values().find(|p| 
-                                    (p.from == *current_location && p.to == tag) ||
+                                // Buscar pasaje en el mapa de pasajes
+                                let passage = PASSAGES.values().find(|p| 
+                                    (p.from == *current_location && p.to == tag) || 
                                     (p.from == tag && p.to == *current_location)
-                                ) {
+                                );
+
+                                // Si encontramos un pasaje con requisitos especiales, verificarlos
+                                if let Some(passage) = passage {
+                                    // Verificar si el pasaje requiere un objeto
+                                    if passage.requires_item {
+                                        if let Some(item_tag) = &passage.item_tag {
+                                            if !self.has_item(item_tag) {
+                                                return format!("Necesitas un objeto concreto para pasar por {}.", passage.base.description);
+                                            }
+                                        }
+                                    }
+                                    
                                     // Verificar si el pasaje requiere una llave
                                     if passage.requires_key {
                                         if let Some(key_tag) = &passage.key_tag {
@@ -137,34 +153,36 @@ impl Player {
                                             }
                                         }
                                     }
-
+                                    
                                     // Verificar si el pasaje tiene un acertijo
                                     if passage.has_riddle {
                                         if let (Some(riddle), Some(answer)) = (&passage.riddle, &passage.riddle_answer) {
                                             println!("\n{}", riddle);
                                             println!("Escribe tu respuesta (o 'cancelar' para volver):");
-                                            
+
                                             let mut input = String::new();
-                                            if let Ok(_) = std::io::stdin().read_line(&mut input) {
-                                                let input = input.trim().to_lowercase();
-                                                if input == "cancelar" {
-                                                    return "Has decidido no intentar resolver el acertijo.".to_string();
+                                            match std::io::stdin().read_line(&mut input) {
+                                                Ok(_) => {
+                                                    let input = input.trim().to_lowercase();
+                                                    if input == "cancelar" {
+                                                        return "Has decidido no intentar resolver el acertijo.".to_string();
+                                                    }
+                                                    if input != answer.to_lowercase() {
+                                                        return "Respuesta incorrecta. La puerta permanece cerrada.".to_string();
+                                                    }
+                                                    // Solo si la respuesta es correcta, permitimos el paso
                                                 }
-                                                if input != answer.to_lowercase() {
-                                                    return "Respuesta incorrecta. La puerta permanece cerrada.".to_string();
+                                                Err(_) => {
+                                                    return "Error al leer la respuesta. La puerta permanece cerrada.".to_string();
                                                 }
                                             }
                                         }
                                     }
-
-                                    // Si llegamos aquí, el jugador puede pasar
-                                    self.set_current_location(Some(tag.to_string()));
-                                    return self.execute_look();
-                                } else {
-                                    // Si no hay pasaje, permitir el movimiento directo
-                                    self.set_current_location(Some(tag.to_string()));
-                                    return self.execute_look();
                                 }
+                                
+                                // Si llegamos aquí, el jugador puede pasar
+                                self.set_current_location(Some(tag.to_string()));
+                                return self.execute_look();
                             } else {
                                 return format!("No existe la ubicación '{}'.", tag);
                             }
@@ -234,7 +252,6 @@ impl Player {
         } else {
             // Primero mostrar objetos no equipados
             let mut non_equipped_items: Vec<&Item> = Vec::new();
-            let mut seen_items = HashSet::new();
 
             for item in self.inventory.iter() {
                 let is_equipped = if item.is_equipment {
@@ -279,7 +296,7 @@ impl Player {
                     false
                 };
 
-                if !is_equipped && seen_items.insert(item.base.tag.clone()) {
+                if !is_equipped {
                     non_equipped_items.push(item);
                 }
             }
@@ -297,7 +314,7 @@ impl Player {
 
             // Luego mostrar objetos equipados
             let mut has_equipped = false;
-            for (index, character) in self.characters.iter().enumerate() {
+            for character in &self.characters {
                 if character.weapon.is_some() || character.shield.is_some() || 
                    character.armor.is_some() || character.bow.is_some() {
                     if !has_equipped {
@@ -305,16 +322,16 @@ impl Player {
                         has_equipped = true;
                     }
                     if let Some(weapon) = &character.weapon {
-                        println!("- {} (equipado por Aventurero {} - {})", weapon.name, index + 1, character.class);
+                        println!("- {} (equipado por {} - {})", weapon.name, character.name, character.class);
                     }
                     if let Some(shield) = &character.shield {
-                        println!("- {} (equipado por Aventurero {} - {})", shield.name, index + 1, character.class);
+                        println!("- {} (equipado por {} - {})", shield.name, character.name, character.class);
                     }
                     if let Some(armor) = &character.armor {
-                        println!("- {} (equipado por Aventurero {} - {})", armor.name, index + 1, character.class);
+                        println!("- {} (equipado por {} - {})", armor.name, character.name, character.class);
                     }
                     if let Some(bow) = &character.bow {
-                        println!("- {} (equipado por Aventurero {} - {})", bow.name, index + 1, character.class);
+                        println!("- {} (equipado por {} - {})", bow.name, character.name, character.class);
                     }
                 }
             }
@@ -328,18 +345,18 @@ impl Player {
     pub fn execute_status(&self) -> String {
         let mut response = String::new();
         response.push_str("Estado del grupo:\n");
-        
-        for (i, character) in self.characters.iter().enumerate() {
+
+        for character in &self.characters {
             response.push_str(&format!(
-                "Aventurero {} ({}, nivel {}): {} PV/{} PV\n",
-                i + 1,
+                "{} ({}, nivel {}): {} PV/{} PV\n",
+                character.name,
                 character.class,
                 character.level,
                 character.hit_points,
                 character.max_hit_points
             ));
         }
-        
+
         response
     }
 
@@ -356,11 +373,11 @@ impl Player {
 
                 // Calcular probabilidad de éxito
                 let mut success_chance = 50; // Base 50%
-                
+
                 // Bonus por intentos previos (máximo 5 intentos)
                 let attempts_bonus = (*attempts).min(5) * 5;
                 success_chance += attempts_bonus as i32;
-                
+
                 // Bonus por tener antorcha
                 if self.has_item("antorcha") {
                     success_chance += 20;
@@ -375,14 +392,14 @@ impl Player {
 
                 if roll <= success_chance {
                     let mut found_something = false;
-                    
+
                     // Buscar items ocultos en la sala
                     let hidden_items: Vec<_> = location.content.items.iter()
                         .filter(|item| {
                             !item.base.visible && !self.discovered_items.contains(&item.base.tag)
                         })
                         .collect();
-                    
+
                     // Buscar localizaciones ocultas en la sala
                     let hidden_locations: Vec<_> = location.connections.iter()
                         .filter_map(|tag| find_location(tag))
@@ -454,7 +471,7 @@ impl Player {
 
     pub fn execute_attack(&mut self, target_tag: &str) -> String {
         let mut response = String::new();
-        
+
         // Si el comando es "continuar", no mostrar el mensaje de inicio
         if target_tag != "continuar" {
             response.push_str("¡Comienza el combate!\n");
@@ -502,27 +519,27 @@ impl Player {
                     response.push_str("\nAtaque de los aventureros:\n");
                     let mut enemies_defeated = 0;
                     let enemies_outnumbered = self.characters.len() > enemies_remaining as usize;
-                    
-                    for (i, character) in self.characters.iter_mut().enumerate() {
+
+                    for character in &mut self.characters {
                         if enemies_remaining == 0 {
                             break;
                         }
 
-                        // Verificar si el personaje tiene un arma equipada
-                        match character.get_attack_bonus() {
+                        // Verificar si el personaje tiene un arma equipada y calcular el bonus de ataque
+                        match character.get_equipment_attack_bonus() {
                             None => {
                                 response.push_str(&format!(
-                                    "Aventurero {} ({}) no puede atacar porque no tiene un arma equipada.\n",
-                                    i + 1, character.class
+                                    "{} ({}) no puede atacar porque no tiene un arma equipada.\n",
+                                    character.name, character.class
                                 ));
                                 continue;
                             },
                             Some(equipment_bonus) => {
                                 let attack_roll = rand::thread_rng().gen_range(1..=6);
                                 let npc = &hostile_npcs[0]; // Todos los enemigos son del mismo tipo
-                                let class_bonus = character.get_class_bonus(enemies_outnumbered, npc.tags.first());
+                                let class_bonus = character.get_class_attack_bonus(enemies_outnumbered, &npc.tags);
                                 let attack_total = attack_roll + class_bonus + equipment_bonus;
-                                
+
                                 let bonus_message = if npc.has_tag(&NPCTag::Orc) && matches!(character.class, Class::Elf) {
                                     format!("{} + 1 (vs orcos)", character.level)
                                 } else {
@@ -530,21 +547,21 @@ impl Player {
                                 };
 
                                 response.push_str(&format!(
-                                    "Aventurero {} (nivel {}) tira {} + {} + {} = {}\n",
-                                    i + 1, character.level, attack_roll, bonus_message, equipment_bonus, attack_total
+                                    "{} (nivel {}) tira {} + {} + {} = {}\n",
+                                    character.name, character.level, attack_roll, bonus_message, equipment_bonus, attack_total
                                 ));
 
                                 if attack_total >= npc.level as i32 {
                                     enemies_defeated += 1;
                                     enemies_remaining -= 1;
                                     response.push_str(&format!(
-                                        "¡Aventurero {} derrota a un {}!\n",
-                                        i + 1, npc.base.tag
+                                        "¡{} derrota a un {}!\n",
+                                        character.name, npc.base.tag
                                     ));
                                 } else {
                                     response.push_str(&format!(
-                                        "Aventurero {} falla el ataque contra el {}.\n",
-                                        i + 1, npc.base.tag
+                                        "{} falla el ataque contra el {}.\n",
+                                        character.name, npc.base.tag
                                     ));
                                 }
                             }
@@ -556,7 +573,7 @@ impl Player {
                         response.push_str("\nContraataque de los enemigos:\n");
                         let enemies_that_can_attack = enemies_remaining as usize;
                         let num_characters = self.characters.len();
-                        
+
                         // Calcular cuántos enemigos adicionales hay después de asignar uno a cada personaje
                         let extra_enemies = if enemies_that_can_attack > num_characters {
                             enemies_that_can_attack - num_characters
@@ -579,33 +596,34 @@ impl Player {
                             for _ in 0..enemies_for_this_char {
                                 let npc = &hostile_npcs[0]; // Todos los enemigos son del mismo tipo
                                 let defense_roll = rand::thread_rng().gen_range(1..=6);
-                                let defense_bonus = character.get_defense_bonus(&npc.tags);
-                                let defense_total = defense_roll + defense_bonus;
-                                
+                                let equipment_defense_bonus = character.get_equipment_defense_bonus();
+                                let class_defense_bonus = character.get_class_defense_bonus(&npc.tags);
+                                let defense_total = defense_roll + equipment_defense_bonus + class_defense_bonus;
+
                                 response.push_str(&format!(
-                                    "Aventurero {} se defiende con {} + {} = {} contra el {}.\n",
-                                    i + 1, defense_roll, defense_bonus, defense_total, npc.base.tag
+                                    "{} se defiende con {} + {} + {} = {} contra el {}.\n",
+                                    character.name, defense_roll, equipment_defense_bonus, class_defense_bonus, defense_total, npc.base.tag
                                 ));
 
                                 if defense_roll == 1 {
                                     // Fallo crítico
                                     character.hit_points -= 1;
                                     response.push_str(&format!(
-                                        "¡Fallo crítico! Aventurero {} recibe 1 punto de daño.\n",
-                                        i + 1
+                                        "¡Fallo crítico! {} recibe 1 punto de daño.\n",
+                                        character.name
                                     ));
                                 } else if defense_total > npc.level as i32 || defense_roll == 6 {
                                     // Defensa exitosa
                                     response.push_str(&format!(
-                                        "Aventurero {} esquiva el ataque del {}.\n",
-                                        i + 1, npc.base.tag
+                                        "{} esquiva el ataque del {}.\n",
+                                        character.name, npc.base.tag
                                     ));
                                 } else {
                                     // Ataque exitoso
                                     character.hit_points -= 1;
                                     response.push_str(&format!(
-                                        "Aventurero {} recibe 1 punto de daño del {}.\n",
-                                        i + 1, npc.base.tag
+                                        "{} recibe 1 punto de daño del {}.\n",
+                                        character.name, npc.base.tag
                                     ));
                                 }
                             }
@@ -616,10 +634,10 @@ impl Player {
 
                         // Mostrar el estado actual del grupo
                         response.push_str("\nEstado del grupo después del contraataque:\n");
-                        for (i, character) in self.characters.iter().enumerate() {
+                        for character in &self.characters {
                             response.push_str(&format!(
-                                "Aventurero {} ({}, nivel {}): {} PV/{} PV\n",
-                                i + 1,
+                                "{} ({}, nivel {}): {} PV/{} PV\n",
+                                character.name,
                                 character.class,
                                 character.level,
                                 character.hit_points,
@@ -665,7 +683,7 @@ impl Player {
         if args.is_empty() {
             println!("¿Qué quieres equipar?");
             println!("Comandos válidos:");
-            println!("- equipar [número_personaje] [tipo_equipo]");
+            println!("- equipar [nombre_personaje] [tipo_equipo]");
             println!("- equipar [tipo_equipo]");
             println!("\nTipos de equipo disponibles:");
             println!("- arma (espada_inicial, hacha_inicial, daga_inicial)");
@@ -677,12 +695,16 @@ impl Player {
         let (character_index, equipment_type) = if args.len() == 1 {
             (0, args[0])
         } else {
-            match args[0].parse::<usize>() {
-                Ok(index) if index > 0 && index <= self.characters.len() => (index - 1, args[1]),
-                _ => {
-                    println!("Número de personaje inválido.");
-                    return false;
+            // Buscar el personaje por nombre
+            if let Some(index) = self.characters.iter().position(|c| c.name.to_lowercase() == args[0].to_lowercase()) {
+                (index, args[1])
+            } else {
+                println!("No se encontró ningún personaje con ese nombre.");
+                println!("\nPersonajes disponibles:");
+                for character in &self.characters {
+                    println!("- {} ({})", character.name, character.class);
                 }
+                return false;
             }
         };
 
@@ -736,7 +758,7 @@ impl Player {
         if args.is_empty() {
             println!("¿Qué quieres desequipar?");
             println!("Comandos válidos:");
-            println!("- desequipar [número_personaje] [tipo_equipo]");
+            println!("- desequipar [nombre_personaje] [tipo_equipo]");
             println!("- desequipar [tipo_equipo]");
             println!("\nTipos de equipo disponibles:");
             println!("- arma");
@@ -748,12 +770,16 @@ impl Player {
         let (character_index, equipment_type) = if args.len() == 1 {
             (0, args[0])
         } else {
-            match args[0].parse::<usize>() {
-                Ok(index) if index > 0 && index <= self.characters.len() => (index - 1, args[1]),
-                _ => {
-                    println!("Número de personaje inválido.");
-                    return false;
+            // Buscar el personaje por nombre
+            if let Some(index) = self.characters.iter().position(|c| c.name.to_lowercase() == args[0].to_lowercase()) {
+                (index, args[1])
+            } else {
+                println!("No se encontró ningún personaje con ese nombre.");
+                println!("\nPersonajes disponibles:");
+                for character in &self.characters {
+                    println!("- {} ({})", character.name, character.class);
                 }
+                return false;
             }
         };
 
@@ -779,33 +805,6 @@ impl Player {
             }
         } else {
             false
-        }
-    }
-
-    pub fn execute_talk_to_npc(&mut self, npc_tag: &str) {
-        if let Some(npc) = find_npc(npc_tag) {
-            let is_in_location = self.current_location.as_ref().map_or(false, |current| current == &npc.location);
-            if is_in_location {
-                println!("Hablas con {}.", npc.base.description);
-                if npc.attitude == Attitude::Hostile {
-                    println!("{} te ataca!", npc.base.description);
-                    self.execute_attack(npc_tag);
-                } else {
-                    println!("{} te saluda amistosamente.", npc.base.description);
-                }
-            } else {
-                println!("No veo a {} por aquí.", npc.base.description);
-            }
-        } else {
-            println!("No veo a nadie con ese nombre.");
-        }
-    }
-
-    pub fn get_defense_bonus(&self, character_index: usize) -> i32 {
-        if let Some(character) = self.characters.get(character_index) {
-            character.get_defense_bonus(&[])
-        } else {
-            0
         }
     }
 }

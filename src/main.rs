@@ -51,7 +51,7 @@ fn main() {
         std::io::stdin().read_line(&mut input).unwrap();
         let input = input.trim();
 
-        let (character, items) = match input {
+        let (mut character, items) = match input {
             "1" => {
                 let sword_warrior = Item::new_equipment("espada_guerrero", "una espada corta de hierro", true, EquipmentType::Weapon(WeaponType::Medium));
                 let shield_warrior = Item::new_equipment("escudo_guerrero", "una escudo de hierro viejo", true, EquipmentType::Shield);
@@ -141,6 +141,13 @@ fn main() {
                 (character, vec![espada, shield, light_armor])
             }
         };
+
+        print!("Escribe el nombre de tu personaje: ");
+        std::io::stdout().flush().unwrap();
+        let mut name = String::new();
+        std::io::stdin().read_line(&mut name).unwrap();
+        character.set_name(name.trim().to_string());
+
         characters.push(character);
         initial_inventory.extend(items);
     }

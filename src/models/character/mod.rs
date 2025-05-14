@@ -126,6 +126,7 @@ impl Class {
 
 #[derive(Debug)]
 pub struct Character {
+    pub name: String,
     pub class: Class,
     pub(crate) hit_points: u32,
     pub(crate) max_hit_points: u32,
@@ -142,6 +143,7 @@ impl Character {
         let max_hit_points = Self::calculate_hit_points(&class, 1);
         let traits = class.get_traits();
         Character {
+            name: format!("Aventurero {}", class),
             class: class.clone(),
             hit_points: max_hit_points,
             max_hit_points,
@@ -152,6 +154,10 @@ impl Character {
             bow: None,
             traits,
         }
+    }
+
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
     }
 
     fn calculate_hit_points(class: &Class, level: u32) -> u32 {
@@ -187,7 +193,7 @@ impl Character {
         }
     }
 
-    pub fn get_attack_bonus(&self) -> Option<i32> {
+    pub fn get_equipment_attack_bonus(&self) -> Option<i32> {
         if self.weapon.is_none() {
             return None;
         }
@@ -207,7 +213,7 @@ impl Character {
         Some(bonus)
     }
 
-    pub fn get_defense_bonus(&self, enemy_tags: &[NPCTag]) -> i32 {
+    pub fn get_equipment_defense_bonus(&self) -> i32 {
         let mut bonus = 0;
 
         // Bonus por armadura
@@ -224,22 +230,22 @@ impl Character {
             bonus += 1;
         }
 
+        bonus
+    }
+
+    pub fn get_class_defense_bonus(&self, enemy_tags: &[NPCTag]) -> i32 {
+        let mut bonus = 0;
+
         // Bonus de clase y raza
-        if matches!(&self.class, Class::Dwarf) {
-            // Bonus contra criaturas grandes
-            if enemy_tags.iter().any(|tag| matches!(tag, NPCTag::Troll | NPCTag::Ogre | NPCTag::Giant)) {
-                bonus += 1;
-            }
-            // Bonus contra goblins
-            if enemy_tags.iter().any(|tag| tag == &NPCTag::Goblin) {
-                bonus += 1;
-            }
+        if matches!(&self.class, Class::Halfling | Class::Dwarf) && 
+           enemy_tags.iter().any(|tag| matches!(tag, NPCTag::Troll | NPCTag::Ogre | NPCTag::Giant)) {
+            bonus += 1;
         }
 
         bonus
     }
 
-    pub fn get_class_bonus(&self, enemies_outnumbered: bool, enemy_tag: Option<&NPCTag>) -> i32 {
+    pub fn get_class_attack_bonus(&self, enemies_outnumbered: bool, enemy_tags: &[NPCTag]) -> i32 {
         let is_two_handed = if let Some(weapon) = &self.weapon {
             matches!(weapon.equipment_type, EquipmentType::Weapon(WeaponType::Heavy))
         } else {
@@ -254,7 +260,7 @@ impl Character {
 
         let mut bonus = match &self.class {
             Class::Fighter => self.level as i32,
-            Class::Cleric => if enemy_tag.map_or(false, |tag| tag == &NPCTag::Undead) {
+            Class::Cleric => if enemy_tags.iter().any(|tag| tag == &NPCTag::Undead) {
                 self.level as i32
             } else {
                 (self.level as f32 / 2.0).floor() as i32
@@ -268,10 +274,10 @@ impl Character {
         };
 
         // Bonus adicional para Elfos contra orcos
-        if matches!(&self.class, Class::Elf) && enemy_tag.map_or(false, |tag| tag == &NPCTag::Orc) {
+        if matches!(&self.class, Class::Elf) && enemy_tags.iter().any(|tag| tag == &NPCTag::Orc) {
             bonus += 1;
         }
-        if matches!(&self.class, Class::Dwarf) && enemy_tag.map_or(false, |tag| tag == &NPCTag::Goblin) {
+        if matches!(&self.class, Class::Dwarf) && enemy_tags.iter().any(|tag| tag == &NPCTag::Goblin) {
             bonus += 1;
         }
 

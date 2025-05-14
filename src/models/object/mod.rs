@@ -125,6 +125,8 @@ pub struct Passage {
     pub base: GameObject,
     pub from: String,           // Tag de la ubicación de origen
     pub to: String,            // Tag de la ubicación de destino
+    pub requires_item: bool,    // Si se necesita una llave para usar el pasaje
+    pub item_tag: Option<String>,
     pub requires_key: bool,    // Si se necesita una llave para usar el pasaje
     pub key_tag: Option<String>, // Tag del item que funciona como llave
     pub has_riddle: bool,      // Si el pasaje tiene un acertijo
@@ -254,12 +256,20 @@ impl Passage {
             base: GameObject::new(tag, description, visible),
             from: from.to_string(),
             to: to.to_string(),
+            requires_item: false,
+            item_tag: None,
             requires_key: false,
             key_tag: None,
             has_riddle: false,
             riddle: None,
             riddle_answer: None,
         }
+    }
+
+    pub fn with_item(mut self, item_tag: &str) -> Self {
+        self.requires_item = true;
+        self.item_tag = Some(item_tag.to_string());
+        self
     }
 
     pub fn with_key(mut self, key_tag: &str) -> Self {
@@ -283,19 +293,19 @@ lazy_static! {
         
         // Crear ubicaciones
         let mut cueva = Location::new("cueva", "una pequeña cueva", true)
-            .with_long_description("Una pequeña cueva con suelo de tierra y paredes de piedra. El aire es fresco y húmedo, y el eco de tus pasos resuena suavemente. Fuera puedes ver campos de labranza a través de la entrada.");
+            .with_long_description("Una pequeña cueva con suelo de tierra y paredes de piedra. El aire es fresco y húmedo, y el eco de tus pasos resuena suavemente. Fuera puedes ver campos los de labranza de Woodspring.");
         let mut campo = Location::new("campo", "un campo abierto", true)
-            .with_long_description("Un campo abierto, recién labrado. La tierra está fresca y húmeda, lista para la siembra. En el horizonte puedes ver las humildes casas de Woodspring y cerca hay una pequeña cueva que parece ser la entrada a algo más grande.");
+            .with_long_description("Un campo abierto, recién labrado. La tierra está fresca y húmeda, lista para la siembra. A poca distancia puedes ver las humildes casas de Woodspring y cerca hay una pequeña cueva que parece ser la entrada a algo más grande.");
         let mut pueblo = Location::new("pueblo", "el pueblo de Woodspring", true)
             .with_long_description("El pueblo de Woodspring, un asentamiento modesto pero acogedor. Unas pocas casas de campesinos se organizan alrededor de una plaza central. Puedes ver un pequeño comercio con su letrero desgastado y una posada con su chimenea humeante. Los campos rodean el pueblo, proporcionando sustento a sus habitantes.");
         let mut bosque = Location::new("bosque", "un bosque de robles", true)
             .with_long_description("Un bosque de robles a las afueras de Woodspring. Los árboles se elevan majestuosamente, sus ramas entrelazadas creando un dosel que filtra la luz del sol. Unas antiguas ruinas emergen de su umbral, sugiriendo una historia olvidada. El bosque se extiende hasta el horizonte, su tamaño es magnífico y su atmósfera, misteriosa.");
         let mut ruinas = Location::new("ruinas", "unas ruinas antiguas", true)
-            .with_long_description("Unas ruinas pertenecientes a un antiguo templo. La hiedra cubre gran parte de lo que antaño fueron majestuosas columnas de mármol. Los símbolos grabados en las piedras están desgastados por el tiempo, pero aún se pueden distinguir algunos detalles. El aire aquí es más fresco y hay un silencio reverencial que sugiere que este lugar fue importante en el pasado.");
+            .with_long_description("Unas ruinas pertenecientes a un antiguo templo dedicado a un dios olvidado. La hiedra cubre gran parte de lo que antaño fueron majestuosas columnas de mármol. Los símbolos grabados en las piedras están desgastados por el tiempo, pero aún se pueden distinguir algunos detalles. El aire aquí es más fresco y hay un silencio reverencial que sugiere que este lugar fue importante en el pasado.");
         
         // Ubicaciones ocultas
         let mut grieta = Location::new("grieta", "una grieta en la pared", false)
-            .with_long_description("Una grieta estrecha en el fondo de la cueva. A través de ella se puede ver un corredor oscuro. El espacio es justo lo suficientemente grande para que una persona pueda pasar, pero requiere cierta agilidad. El aire que viene del otro lado es más frío y huele a humedad y antigüedad.");
+            .with_long_description("Una grieta estrecha en el fondo de la cueva. A través de ella se puede ver un corredor oscuro. El espacio es justo lo suficientemente grande para que una persona pueda pasar, pero requiere cierta agilidad. El aire que viene del otro lado es más frío y huele a humedad y antigüedad. El pasadizo está en completa oscuridad, no puedes entrar sin una fuente de luz.");
         let mut corredor = Location::new("corredor", "un corredor oscuro", true)
             .with_long_description("Un corredor estrecho y oscuro que termina en una puerta de piedra con símbolos grabados. Las paredes están húmedas y el suelo es irregular. La única iluminación proviene de la grieta por la que entraste, creando sombras que bailan en las paredes.");
         let mut puerta = Location::new("puerta", "una puerta de piedra", true)
@@ -425,10 +435,20 @@ lazy_static! {
     pub static ref PASSAGES: HashMap<String, Passage> = {
         let mut m = HashMap::new();
         
-        // Crear pasajes
-        m.insert("grieta".to_string(), Passage::new("grieta", "una grieta estrecha en la pared trasera de la cueva. Parece que se puede pasar por ella", "cueva", "grieta", false));
-        m.insert("corredor".to_string(), Passage::new("corredor", "un estrecho corredor, termina en una puerta de piedra con símbolos grabados", "grieta", "corredor", false));
-        m.insert("puerta".to_string(), Passage::new("puerta", "una puerta de piedra con símbolos grabados", "corredor", "camara", true)
+        // Pasajes principales
+        m.insert("campo_pueblo".to_string(), Passage::new("campo_pueblo", "un camino que lleva al pueblo", "campo", "pueblo", true));
+        m.insert("pueblo_campo".to_string(), Passage::new("pueblo_campo", "un camino que lleva a los campos", "pueblo", "campo", true));
+        m.insert("campo_cueva".to_string(), Passage::new("campo_cueva", "una entrada a la cueva", "campo", "cueva", true));
+        m.insert("cueva_campo".to_string(), Passage::new("cueva_campo", "la salida de la cueva", "cueva", "campo", true));
+        m.insert("cueva_bosque".to_string(), Passage::new("cueva_bosque", "un sendero que lleva al bosque", "cueva", "bosque", true));
+        m.insert("bosque_cueva".to_string(), Passage::new("bosque_cueva", "un sendero que lleva a la cueva", "bosque", "cueva", true));
+        m.insert("bosque_ruinas".to_string(), Passage::new("bosque_ruinas", "un camino que lleva a las ruinas", "bosque", "ruinas", true));
+        m.insert("ruinas_bosque".to_string(), Passage::new("ruinas_bosque", "un camino que lleva al bosque", "ruinas", "bosque", true));
+
+        // Pasajes de la cueva
+        m.insert("grieta".to_string(), Passage::new("grieta", "una grieta estrecha en la pared trasera de la cueva. Parece que se puede atravesar si encuentras una antorcha.", "cueva", "grieta", false));
+        m.insert("corredor".to_string(), Passage::new("corredor", "un estrecho corredor, en completa oscuridad, es difícil ver lo que hay delante. Parece que se puede atravesar si encuentras una antorcha.", "grieta", "corredor", false).with_item("antorcha"));
+        m.insert("puerta".to_string(), Passage::new("puerta", "una puerta de piedra con símbolos grabados", "puerta", "camara", true)
             .with_riddle(
                 "Soy alto cuando soy joven y bajo cuando soy viejo. ¿Qué soy?",
                 "vela"
