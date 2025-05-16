@@ -20,6 +20,7 @@ pub enum Attitude {
 #[derive(Debug, Clone)]
 pub struct RoomContent {
     pub items: Vec<Item>,      // Items en la sala
+    pub hidden_items: Vec<Item>, // Items ocultos en la sala
     pub npcs: Vec<String>,     // Tags de los NPCs en la sala
     pub is_visited: bool,      // Si la sala ha sido visitada
     pub is_locked: bool,       // Si la sala está bloqueada
@@ -30,6 +31,7 @@ impl RoomContent {
     pub fn new() -> Self {
         Self {
             items: Vec::new(),
+            hidden_items: Vec::new(),
             npcs: Vec::new(),
             is_visited: false,
             is_locked: false,
@@ -41,8 +43,30 @@ impl RoomContent {
         self.items.push(item);
     }
 
+    pub fn add_hidden_item(&mut self, item: Item) {
+        self.hidden_items.push(item);
+    }
+
     pub fn remove_item(&mut self, item_tag: &str) {
         self.items.retain(|item| item.base.tag != item_tag);
+    }
+
+    pub fn remove_hidden_item(&mut self, item_tag: &str) {
+        self.hidden_items.retain(|item| item.base.tag != item_tag);
+    }
+
+    pub fn reveal_hidden_item(&mut self, item_tag: &str) -> Option<Item> {
+        if let Some(index) = self.hidden_items.iter().position(|item| item.base.tag == item_tag) {
+            let item = self.hidden_items.remove(index);
+            self.items.push(item.clone());
+            Some(item)
+        } else {
+            None
+        }
+    }
+
+    pub fn find_hidden_item(&self, item_tag: &str) -> Option<&Item> {
+        self.hidden_items.iter().find(|item| item.base.tag == item_tag)
     }
 
     pub fn add_npc(&mut self, npc_tag: &str) {
@@ -315,7 +339,7 @@ lazy_static! {
         let mut camara = Location::new("camara", "una cámara abandonada", true)
             .with_long_description("Esta habtación parece haberse usado tiempo atrás como improvisado dormitorio y cocina. Hay una modesta mesa carcomida en una esquina. Una gruesa capa de polvo lo cubre todo.");
         let mut laboratorio = Location::new("laboratorio", "un laboratorio abandonado", true)
-            .with_long_description("Un laboratorio abandonado que parece haber sido usado por alquimistas o magos. Mesas de trabajo cubiertas de polvo y estantes con frascos de cristal se alinean en las paredes. Algunos frascos aún contienen líquidos de colores extraños, y hay notas y diagramas esparcidos por las mesas.");
+            .with_long_description("Un laboratorio abandonado que parece haber sido usado por alquimistas o magos. Mesas de trabajo cubiertas de polvo y estantes con frascos de cristal se alinean en las paredes. Algunos frascos aún contienen restos de líquidos de colores extraños, y hay notas y diagramas esparcidos por las mesas.");
         let mut biblioteca = Location::new("biblioteca", "una biblioteca antigua", true)
             .with_long_description("Una biblioteca antigua con estanterías de madera oscura que llegan hasta el techo. Los libros están cubiertos de polvo y algunos parecen estar escritos en idiomas olvidados. El aire huele a papel viejo y madera envejecida.");
         let mut tesoro = Location::new("tesoro", "una sala de tesoros", true)
@@ -325,6 +349,7 @@ lazy_static! {
         cueva.content.add_item(Item::new("antorcha", "una antorcha"));
         campo.content.add_item(Item::new("cuerda", "una cuerda en buen estado"));
         campo.content.add_item(Item::new("moneda", "una moneda de plata"));
+        biblioteca.content.add_item(Item::new("libro", "un libro de nigromancia, escrito en un idioma antiguo y bastante bien conservado. Anotado en un margen, está el nombre de un mago llamado 'Ainiriand'"));
 
         pueblo.content.add_npc("guardia");
         // Añadir grupos de NPCs a sus ubicaciones
@@ -464,7 +489,7 @@ lazy_static! {
             ));
         m.insert("laboratorio".to_string(), Passage::new("laboratorio", "un pasillo que conduce al laboratorio", "camara", "laboratorio", true));
         m.insert("biblioteca".to_string(), Passage::new("biblioteca", "un pasillo que conduce a la biblioteca", "laboratorio", "biblioteca", true));
-        m.insert("tesoro".to_string(), Passage::new("tesoro", "un pasillo que conduce a la sala del tesoro", "biblioteca", "tesoro", true));
+        m.insert("tesoro".to_string(), Passage::new("tesoro", "una trampilla que conduce a una pequeña sala de tesoros", "biblioteca", "tesoro", true).with_key("llave"));
 
         m
     };
@@ -492,6 +517,11 @@ pub fn get_items_in_location(location_tag: &str) -> Vec<&'static Item> {
     ITEMS.values()
         .filter(|item| item.base.tag == location_tag)
         .collect()
+}
+
+// Función para obtener todos los items ocultos en una ubicación
+pub fn get_hidden_items_in_location(location: &Location) -> Vec<&Item> {
+    location.content.hidden_items.iter().collect()
 }
 
 // Función para obtener todos los NPCs en una ubicación
