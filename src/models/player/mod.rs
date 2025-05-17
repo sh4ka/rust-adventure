@@ -1,4 +1,4 @@
-use crate::Character;
+use crate::models::character::Character;
 use crate::models::object::{Location, Item, NPC, Passage, find_location, find_npc, find_item_in_location, find_passage, find_item, PASSAGES, Attitude, NPCTag};
 use crate::models::character::{Equipment, EquipmentType, WeaponType, ArmorType, Class, parse_new_character};
 use std::collections::{HashMap, HashSet};
@@ -110,11 +110,12 @@ impl Player {
         self.current_location = location_tag;
     }
 
-    pub fn execute_look(&self) -> String {
+    pub fn execute_look(&self) {
         if let Some(location_tag) = &self.current_location {
             if let Some(location) = find_location(location_tag) {
-                let mut response = format!("Estás en {}\n", location.base.description);
-                response.push_str(&format!("\n{}\n", location.base.long_description));
+                println!();
+                println!("Estás en {}:", location.base.description);
+                println!("- {}", location.base.long_description);
 
                 // Obtener items visibles en la ubicación actual que no han sido recogidos ni soltados en otro lugar
                 let visible_items: Vec<_> = location.content.items.iter()
@@ -143,12 +144,13 @@ impl Player {
                 let has_visible_npcs = !visible_npcs.is_empty();
 
                 if has_visible_items || has_visible_npcs {
-                    response.push_str("\nHay:\n");
+                    println!();
+                    println!("Ves:");
                     for item in visible_items {
-                        response.push_str(&format!("- {}\n", item.base.description));
+                        println!("- {}", item.base.description);
                     }
                     for item in dropped_items {
-                        response.push_str(&format!("- {}\n", item.base.description));
+                        println!("- {}", item.base.description);
                     }
                     for npc in visible_npcs {
                         let attitude = match npc.attitude {
@@ -163,18 +165,16 @@ impl Player {
                             Attitude::Neutral => " (neutral)".to_string(),
                             Attitude::Friendly => " (amistoso)".to_string(),
                         };
-                        response.push_str(&format!("- {}{}\n", npc.base.description, attitude));
+                        println!("- {}{}", npc.base.description, attitude);
                     }
                 }
 
                 // Mostrar las ubicaciones disponibles a las que el jugador puede ir
-                response.push_str("\nPuedes ir a:\n");
-                response.push_str(&self.show_available_locations());
-
-                return response;
+                println!();
+                println!("Puedes ir a:");
+                println!("{}", &self.show_available_locations());
             }
         }
-        "No estás en ninguna ubicación.".to_string()
     }
 
     pub fn execute_go(&mut self, location_tag: Option<&str>) -> String {
@@ -244,7 +244,8 @@ impl Player {
 
                                 // Si llegamos aquí, el jugador puede pasar
                                 self.set_current_location(Some(tag.to_string()));
-                                return self.execute_look();
+                                self.execute_look();
+                                "".to_string()
                             } else {
                                 return format!("No existe la ubicación '{}'.", tag);
                             }
@@ -258,7 +259,8 @@ impl Player {
                     // Si no hay ubicación actual, permitir moverse a cualquier ubicación válida
                     if find_location(tag).is_some() {
                         self.set_current_location(Some(tag.to_string()));
-                        return self.execute_look();
+                        self.execute_look();
+                        "".to_string()
                     } else {
                         return format!("No existe la ubicación '{}'.", tag);
                     }
@@ -406,10 +408,11 @@ impl Player {
 
     pub fn execute_status(&self) {
         println!("Estado del grupo:");
+        println!("=================");
 
         for character in &self.characters {
             println!(
-                "{} ({}, nivel {}): {} PV/{} PV\n",
+                "- {} ({}, nivel {}): {} PV/{} PV",
                 character.name,
                 character.class,
                 character.level,
@@ -418,7 +421,8 @@ impl Player {
             );
         }
 
-        println!("Encuentros superados: {}", self.encounters_won);
+        println!("====================");
+        println!("XP acumulados: {}/10", self.encounters_won);
     }
 
     pub fn has_item(&self, tag: &str) -> bool {
@@ -990,87 +994,4 @@ impl Player {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::models::character::Class;
-
-    fn create_test_player() -> Player {
-        let mut characters = vec![
-            Character::new(Class::Fighter),
-            Character::new(Class::Wizard),
-            Character::new(Class::Rogue),
-        ];
-        
-        // Establecer nombres para los personajes
-        let mut existing_names = HashSet::new();
-        characters[0].set_name("Aragorn".to_string(), &existing_names);
-        existing_names.insert("Aragorn".to_string());
-        characters[1].set_name("Gandalf".to_string(), &existing_names);
-        existing_names.insert("Gandalf".to_string());
-        characters[2].set_name("Legolas".to_string(), &existing_names);
-        
-        Player::new(characters)
-    }
-
-    #[test]
-    fn test_handle_level_up_basic() {
-        let mut player = create_test_player();
-        player.encounters_won = 10;
-        let mut input_reader = TestInputReader::new("Aragorn\n".to_string());
-        let mut dice = MockDiceRoller { value: 6 };
-        player.handle_level_up(&mut input_reader, &mut dice);
-        let aragorn = player.characters.iter().find(|c| c.name == "Aragorn").unwrap();
-        assert_eq!(aragorn.level, 2);
-        assert_eq!(player.leveled_up_last_time, Some("Aragorn".to_string()));
-    }
-
-    #[test]
-    fn test_handle_level_up_with_max_level_others() {
-        let mut player = create_test_player();
-        player.encounters_won = 10;
-        for character in &mut player.characters {
-            if character.name != "Aragorn" {
-                character.level = 5;
-            }
-        }
-        player.leveled_up_last_time = Some("Aragorn".to_string());
-        let mut input_reader = TestInputReader::new("Aragorn\n".to_string());
-        let mut dice = MockDiceRoller { value: 6 };
-        player.handle_level_up(&mut input_reader, &mut dice);
-        let aragorn = player.characters.iter().find(|c| c.name == "Aragorn").unwrap();
-        assert_eq!(aragorn.level, 2);
-    }
-
-    #[test]
-    fn test_handle_level_up_without_max_level_others() {
-        let mut player = create_test_player();
-        player.encounters_won = 10;
-        player.leveled_up_last_time = Some("Aragorn".to_string());
-        let mut input_reader = TestInputReader::new("Gandalf\n".to_string());
-        let mut dice = MockDiceRoller { value: 6 };
-        player.handle_level_up(&mut input_reader, &mut dice);
-        let gandalf = player.characters.iter().find(|c| c.name == "Gandalf").unwrap();
-        assert_eq!(gandalf.level, 2);
-        let aragorn = player.characters.iter().find(|c| c.name == "Aragorn").unwrap();
-        assert_eq!(aragorn.level, 1);
-    }
-
-    #[test]
-    #[should_panic(expected = "Ya existe un personaje con el nombre: Gandalf")]
-    fn test_duplicate_character_names() {
-        let mut characters = vec![
-            Character::new(Class::Fighter),
-            Character::new(Class::Wizard),
-            Character::new(Class::Rogue),
-        ];
-        
-        // Establecer nombres duplicados
-        let mut existing_names = HashSet::new();
-        characters[0].set_name("Gandalf".to_string(), &existing_names);
-        existing_names.insert("Gandalf".to_string());
-        characters[1].set_name("Gandalf".to_string(), &existing_names);
-        characters[2].set_name("Legolas".to_string(), &existing_names);
-        
-        Player::new(characters);
-    }
-}
+mod tests;

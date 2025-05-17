@@ -54,7 +54,10 @@ pub fn execute_command(player: &mut Player, command: Command) -> String {
 
     match command {
         Command::Go(location) => player.execute_go(location.as_deref()),
-        Command::Look => player.execute_look(),
+        Command::Look => {
+            player.execute_look();
+            "".to_string()
+        } ,
         Command::Take(item) => {
             if player.execute_take(&item) {
                 "".to_string()
