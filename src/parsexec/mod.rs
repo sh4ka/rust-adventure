@@ -77,11 +77,8 @@ pub fn execute_command(player: &mut Player, command: Command) -> String {
             "".to_string()
         },
         Command::Search => {
-            if player.execute_search() {
-                "".to_string()
-            } else {
-                "No encuentras nada especial.".to_string()
-            }
+            player.execute_search();
+            "".to_string()
         },
         Command::Status => {
             player.execute_status();
